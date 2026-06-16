@@ -1,0 +1,10 @@
+.venv/
+*.log
+__pycache__/
+.pytest_cache/
+.env
+!.env.example
+
+# data / stav (generuje se za běhu, necommitujeme do veřejného repa)
+zebricek.xlsx
+*.bak
