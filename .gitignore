@@ -7,4 +7,5 @@ __pycache__/
 
 # data / stav (generuje se za běhu, necommitujeme do veřejného repa)
 zebricek.xlsx
-*.bak
+*.bak*
+.~lock.*#

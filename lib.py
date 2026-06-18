@@ -244,8 +244,11 @@ def _sauto_url(item):
     return f"https://www.sauto.cz/osobni/detail/{znacka}/{model}/{item.get('id')}"
 
 
-def nove_auto_row(item, vin_rep):
-    """Sestaví řádek do žebříčku z sauto detailu + VIN reportu."""
+def nove_auto_row(item, vin_rep, dnes=None):
+    """Sestaví řádek do žebříčku z sauto detailu + VIN reportu.
+
+    pridano_dne = den prvního zařazení do žebříčku (default dnešek)."""
+    dnes = dnes or dt.date.today()
     eq = _eq_names(item)
     znacka = ((item.get("manufacturer_cb") or {}).get("name")
               if isinstance(item.get("manufacturer_cb"), dict) else None) or ""
@@ -277,6 +280,7 @@ def nove_auto_row(item, vin_rep):
 
     return {
         "stav": "aktivní",
+        "pridano_dne": dnes.isoformat(),
         "vuz": (item.get("name") or "").strip(),
         "znacka": znacka,
         "cena_Kc": item.get("price"),

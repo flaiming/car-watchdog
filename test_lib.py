@@ -215,6 +215,15 @@ def test_nove_auto_row_sestaveni():
     assert row["motor_kod"] == "1.6 SCe (H4M)"
 
 
+def test_nove_auto_row_pridano_dne():
+    item = {"id": 1, "name": "X", "manufacturer_cb": {"name": "Dacia"},
+            "engine_volume": 1598, "aircondition_cb": {"name": "Manuální"},
+            "equipment_cb": []}
+    vrep = {"owners": 1, "odo": [], "odo_str": "", "tampered": False, "ok": False}
+    row = lib.nove_auto_row(item, vrep, dnes=dt.date(2026, 6, 17))
+    assert row["pridano_dne"] == "2026-06-17"
+
+
 def test_nove_auto_row_staceni_ve_verdiktu():
     item = {"id": 1, "name": "X", "manufacturer_cb": {"name": "Dacia"},
             "engine_volume": 1598, "aircondition_cb": {"name": "Manuální"},

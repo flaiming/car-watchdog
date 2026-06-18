@@ -34,6 +34,8 @@ EMAIL = {
     "from_addr": os.environ.get("AUTA_MAIL_FROM", "you@example.com"),
     "to_addrs": [a.strip() for a in os.environ.get("AUTA_MAIL_TO", "you@example.com").split(",") if a.strip()],
     "top_n": int(os.environ.get("AUTA_MAIL_TOPN", "5")),
+    # Posílat e-mail jen když je nějaká změna (vhodné pro častý běh, např. po hodině).
+    "only_on_change": _bool("AUTA_MAIL_ONLY_ON_CHANGE", True),
 }
 
 # --- sauto filtry (stejné, jako sleduješ v prohlížeči) ---
@@ -79,7 +81,7 @@ def motor_kod(znacka, objem):
     return f"{objem} ccm (atmosféra)"
 
 # --- pořadí sloupců v exportu ---
-SLOUPCE = ["poradi", "stav", "skore", "vuz", "znacka", "cena_Kc", "retrofit_Kc",
+SLOUPCE = ["poradi", "stav", "pridano_dne", "skore", "vuz", "znacka", "cena_Kc", "retrofit_Kc",
            "efektivni_cena_Kc", "retrofit_co", "najezd_km", "vykon_kW", "rok",
            "zmen_vlastnika", "STK_do", "tempomat", "park_senzory", "klima",
            "klima_skore", "motor_kod", "turbo", "rozvod", "udrzba",

@@ -120,9 +120,13 @@ def main(dry_run=False, send_email=True):
 
     # 5) e-mail
     changes = {"prodano": nove_prodano, "aktivni": znovu_aktivni, "pridano": pridano}
+    ma_zmenu = bool(nove_prodano or znovu_aktivni or pridano)
     if not dry_run and send_email and C.EMAIL.get("enabled"):
-        subject, text, html = mailer.build_summary(df, changes, dt.date.today().isoformat())
-        mailer.send(subject, text, html)
+        if C.EMAIL.get("only_on_change") and not ma_zmenu:
+            print("  📭 beze změny – e-mail se neposílá")
+        else:
+            subject, text, html = mailer.build_summary(df, changes, dt.date.today().isoformat())
+            mailer.send(subject, text, html)
     return df
 
 
