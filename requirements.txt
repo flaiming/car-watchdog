@@ -1,4 +1,7 @@
-pandas>=2.0
+# Py 3.10+ (lokál): nejnovější pandas. Py 3.9 (Raspberry Pi): strop <2.3 –
+# pandas 2.3 už nemá hotový wheel pro cp39 a kompilace ze zdrojáků na Pi padá.
+pandas>=2.2,<2.3; python_version < "3.10"
+pandas>=2.2; python_version >= "3.10"
 openpyxl>=3.1
 pytest>=8.0
 python-dotenv>=1.0
