@@ -3,7 +3,7 @@
 
 Žádný stav se tu nedrží – jen čisté funkce, které volá aktualizace.py.
 """
-import re, json, html as ihtml, datetime as dt, urllib.request
+import re, json, html as ihtml, datetime as dt, urllib.request, urllib.error
 import pandas as pd
 import config as C
 
@@ -34,6 +34,34 @@ def sauto_status(item_id):
     return r.get("status") if r else None
 
 
+def sauto_check(item_id):
+    """Robustní kontrola stavu inzerátu. Vrací (stav, item):
+
+      ("active", item)  – inzerát je aktivní
+      ("gone",   item)  – inzerát definitivně pryč (404 nebo status != active)
+      ("error",  None)  – nepodařilo se zeptat (výpadek sítě, timeout, 5xx…)
+
+    Rozdíl mezi "gone" a "error" je zásadní: na "error" se NESMÍ sahat na stav,
+    jinak výpadek sítě označí celý žebříček jako prodaný (viz incident 22.6.2026).
+    """
+    try:
+        raw = _get(f"https://www.sauto.cz/api/v1/items/{item_id}")
+    except urllib.error.HTTPError as e:
+        # 404 = inzerát neexistuje (smazaný/prodaný); 4xx/5xx jiné = nejisté
+        return ("gone", None) if e.code == 404 else ("error", None)
+    except Exception as e:
+        print(f"  ! sauto_check({item_id}) síť: {e}")
+        return ("error", None)
+    try:
+        item = json.loads(raw).get("result")
+    except Exception as e:
+        print(f"  ! sauto_check({item_id}) JSON: {e}")
+        return ("error", None)
+    if not item:
+        return ("gone", None)
+    return ("active" if item.get("status") == "active" else "gone", item)
+
+
 def sauto_filter_ids(url):
     """Seznam ID inzerátů z výsledků filtru (parsuje /detail/.../<id> odkazy)."""
     html = _get(url).decode("utf-8", "replace")
@@ -49,6 +77,19 @@ def _eq_names(item):
 def _ac_name(item):
     ac = item.get("aircondition_cb")
     return ac.get("name") if isinstance(ac, dict) else ac
+
+
+def prodejce_name(item):
+    """Název prodejce (AAA AUTO, Auto ESA…) z premise. Bez premise = soukromý.
+
+    Některé bazary mají v názvu odsazení/poznámky – zkrátíme na čistý název."""
+    p = item.get("premise")
+    if not isinstance(p, dict):
+        return "soukromý prodejce"
+    name = re.sub(r'\s+', ' ', str(p.get("name") or "")).strip()
+    # odřízneme případnou poznámku v závorce ("Louda Auto+ ( 8 poboček )")
+    name = re.sub(r'\s*\(.*$', '', name).strip()
+    return name or "soukromý prodejce"
 
 
 def classify(item):
@@ -283,6 +324,7 @@ def nove_auto_row(item, vin_rep, dnes=None):
         "pridano_dne": dnes.isoformat(),
         "vuz": (item.get("name") or "").strip(),
         "znacka": znacka,
+        "prodejce": prodejce_name(item),
         "cena_Kc": item.get("price"),
         "najezd_km": item.get("tachometer"),
         "vykon_kW": item.get("engine_power"),

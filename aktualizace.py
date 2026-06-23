@@ -27,20 +27,29 @@ def main(dry_run=False, send_email=True):
     df["_id"] = df["url"].map(lib.id_from_url)
     znama_id = set(df["_id"].dropna().astype(int))
 
-    nove_prodano, znovu_aktivni = [], []
+    nove_prodano, znovu_aktivni, nejiste = [], [], []
 
     # 1) kontrola stavu existujících inzerátů
     print("=== 1) Kontrola stavu inzerátů ===")
+    if "prodejce" not in df.columns:
+        df["prodejce"] = pd.Series(pd.NA, index=df.index, dtype="object")
     for idx, r in df.iterrows():
-        st = lib.sauto_status(r["_id"])
-        je_pryc = st != "active"
+        stav_api, item = lib.sauto_check(r["_id"])
+        # doplníme prodejce u starších řádků (sloupec přibyl později)
+        if item and (pd.isna(r.get("prodejce")) or not str(r.get("prodejce")).strip()):
+            df.at[idx, "prodejce"] = lib.prodejce_name(item)
+        if stav_api == "error":
+            # nepodařilo se zeptat – stav NECHÁVÁME být (neoznačit jako prodané!)
+            nejiste.append(r["vuz"])
+            continue
+        je_pryc = stav_api == "gone"
         bylo_prodano = r["stav"] == "PRODÁNO"
         if je_pryc and not bylo_prodano:
             df.at[idx, "stav"] = "PRODÁNO"
             # Uložíme celý řádek tak, jak auto vypadalo ve včerejším žebříčku
             # (pořadí, skóre, cena, nájezd…) – po přepočtu se prodaná řadí na
             # konec, takže poradi i skóre by už nesedělo. Mail pak ukáže plné info.
-            snap = {k: r[k] for k in ("poradi", "skore", "vuz", "cena_Kc",
+            snap = {k: r[k] for k in ("poradi", "skore", "vuz", "prodejce", "cena_Kc",
                                       "najezd_km", "rok", "tempomat",
                                       "park_senzory", "klima", "url")}
             snap["poradi"] = int(snap["poradi"]) if pd.notna(snap["poradi"]) else None
@@ -52,6 +61,8 @@ def main(dry_run=False, send_email=True):
             print(f"  🟢 ZNOVU AKTIVNÍ: {r['vuz']}")
     if not nove_prodano and not znovu_aktivni:
         print("  beze změny – vše jako dřív")
+    if nejiste:
+        print(f"  ⚠️ {len(nejiste)} inzerátů se nepodařilo ověřit (síť) – stav ponechán beze změny")
 
     # 2) nová ID ve filtrech
     print("\n=== 2) Kontrola filtrů na nové inzeráty ===")

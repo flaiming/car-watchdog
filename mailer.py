@@ -35,9 +35,14 @@ def build_summary(df, changes, datum):
         """Číslo s mezerami po tisících, jinak placeholder."""
         return f"{v:,}".replace(",", " ") if isinstance(v, (int, float)) and pd.notna(v) else "?"
 
+    def _prodejce(r):
+        p = r.get("prodejce")
+        return str(p) if p is not None and pd.notna(p) else "?"
+
     def _radek_text(r):
         return (f"  {_misto(r.get('poradi')):>3}  {_ck(r.get('skore')):>5}  "
-                f"{str(r.get('vuz', ''))[:42]:42}  {_ck(r.get('cena_Kc'))} Kč  "
+                f"{str(r.get('vuz', ''))[:42]:42}  {_prodejce(r)[:18]:18}  "
+                f"{_ck(r.get('cena_Kc'))} Kč  "
                 f"{_ck(r.get('najezd_km'))} km  {r.get('rok', '?')}")
 
     def _radek_html(r):
@@ -45,14 +50,15 @@ def build_summary(df, changes, datum):
         vuz = str(r.get("vuz", ""))
         vuz_html = f"<a href='{url}'>{vuz}</a>" if url and pd.notna(url) else vuz
         return (f"<tr><td>{_misto(r.get('poradi'))}</td><td><b>{r.get('skore', '?')}</b></td>"
-                f"<td>{vuz_html}</td><td align='right'>{_ck(r.get('cena_Kc'))} Kč</td>"
+                f"<td>{vuz_html}</td><td>{_prodejce(r)}</td>"
+                f"<td align='right'>{_ck(r.get('cena_Kc'))} Kč</td>"
                 f"<td align='right'>{_ck(r.get('najezd_km'))} km</td><td>{r.get('rok', '?')}</td>"
                 f"<td>{r.get('tempomat', '')}</td><td>{r.get('park_senzory', '')}</td>"
                 f"<td>{r.get('klima', '')}</td></tr>")
 
     def _tabulka(radky):
         return ('<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse">'
-                '<tr style="background:#f1f3f4"><th>#</th><th>Skóre</th><th>Vůz</th><th>Cena</th>'
+                '<tr style="background:#f1f3f4"><th>#</th><th>Skóre</th><th>Vůz</th><th>Prodejce</th><th>Cena</th>'
                 '<th>Nájezd</th><th>Rok</th><th>Tempo</th><th>Senzory</th><th>Klima</th></tr>'
                 f'{radky}</table>')
 

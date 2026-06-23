@@ -233,6 +233,47 @@ def test_nove_auto_row_staceni_ve_verdiktu():
     assert "STÁČENÍ" in row["verdikt"]
 
 
+# ---------- sauto_check (rozlišení "pryč" vs "výpadek sítě") ----------
+def test_sauto_check_vypadek_site_je_error(monkeypatch):
+    # Regrese incidentu 22.6.2026: DNS výpadek nesmí vypadat jako "prodáno".
+    def _spadni(url, timeout=25):
+        raise OSError("Temporary failure in name resolution")
+    monkeypatch.setattr(lib, "_get", _spadni)
+    stav, item = lib.sauto_check(123)
+    assert stav == "error" and item is None
+
+
+def test_sauto_check_404_je_gone(monkeypatch):
+    import urllib.error
+    def _ctyrnula(url, timeout=25):
+        raise urllib.error.HTTPError(url, 404, "Not Found", {}, None)
+    monkeypatch.setattr(lib, "_get", _ctyrnula)
+    assert lib.sauto_check(123) == ("gone", None)
+
+
+def test_sauto_check_aktivni(monkeypatch):
+    import json
+    monkeypatch.setattr(lib, "_get",
+                        lambda url, timeout=25: json.dumps(
+                            {"result": {"status": "active", "id": 1}}).encode())
+    stav, item = lib.sauto_check(1)
+    assert stav == "active" and item["id"] == 1
+
+
+# ---------- prodejce_name ----------
+def test_prodejce_name_z_premise():
+    assert lib.prodejce_name({"premise": {"name": "AAA AUTO"}}) == "AAA AUTO"
+
+
+def test_prodejce_name_orizne_poznamku():
+    assert lib.prodejce_name(
+        {"premise": {"name": "Louda Auto+   ( 8 poboček v 6 krajích )"}}) == "Louda Auto+"
+
+
+def test_prodejce_name_soukromnik():
+    assert lib.prodejce_name({"premise": None}) == "soukromý prodejce"
+
+
 # ---------- mailer.build_summary ----------
 def _df_pro_mail():
     df = pd.DataFrame([
