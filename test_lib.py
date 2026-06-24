@@ -65,6 +65,22 @@ def test_classify_turbo_vyradit():
     assert ok is False and "atmosféra" in duvod
 
 
+def test_classify_kia_gdi_atmosfera_projde():
+    # Kia 1.6 GDI 99 kW (objem 1591) je atmosféra – musí projít
+    it = _item(1591, "Manuální", "Kia Cee´d 1.6 GDI")
+    it["engine_power"] = 99
+    ok, _ = lib.classify(it)
+    assert ok is True
+
+
+def test_classify_turbo_dle_vykonu_vyradit():
+    # stejný objem jako atmosféra (1598), ale 110 kW = turbo (Kia/Citroën) -> ven
+    it = _item(1598, "Manuální", "Kia 1.6 T-GDi")
+    it["engine_power"] = 110
+    ok, duvod = lib.classify(it)
+    assert ok is False and "kW" in duvod
+
+
 def test_classify_bez_klimy_vyradit():
     ok, duvod = lib.classify(_item(1598, None))
     assert ok is False and "klimat" in duvod.lower()

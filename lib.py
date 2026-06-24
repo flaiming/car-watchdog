@@ -63,9 +63,13 @@ def sauto_check(item_id):
 
 
 def sauto_filter_ids(url):
-    """Seznam ID inzerátů z výsledků filtru (parsuje /detail/.../<id> odkazy)."""
+    """Seznam ID inzerátů z výsledků filtru (parsuje /detail/.../<id> odkazy).
+
+    Pozor: seo jména značky/modelu můžou mít pomlčku/číslici (např. Kia 'cee-d'),
+    proto [a-z0-9-]+ a ne jen [a-z]+ – jinak by se model s pomlčkou nenašel.
+    """
     html = _get(url).decode("utf-8", "replace")
-    ids = re.findall(r'/detail/[a-z]+/[a-z]+/(\d+)', html)
+    ids = re.findall(r'/detail/[a-z0-9-]+/[a-z0-9-]+/(\d+)', html)
     return sorted(set(int(i) for i in ids))
 
 
@@ -104,6 +108,11 @@ def classify(item):
 
     if vol not in C.OBJEMY_NA:
         return False, f"není atmosféra 1.6 ({vol} ccm – turbo/diesel/jiné)"
+    # Strop výkonu: některé objemy sdílí turbo verze (1598 THP/T-GDI, 1591 T-GDI GT).
+    # Atmosféry mají ≤103 kW, turba ≥110 kW – vyšší výkon = turbo, nezařazujeme.
+    kw = item.get("engine_power")
+    if isinstance(kw, (int, float)) and kw > C.MAX_VYKON_NA:
+        return False, f"výkon {int(kw)} kW > {C.MAX_VYKON_NA} (turbo, ne atmosféra)"
     if C.VYRADIT_LPG and "lpg" in name.lower():
         return False, "LPG (systém navíc)"
     if C.KLIMA_POVINNA and not has_ac:

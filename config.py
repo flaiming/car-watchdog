@@ -47,11 +47,18 @@ FILTRY = {
     "Citroën Berlingo + Peugeot Partner":
         "https://www.sauto.cz/inzerce/osobni?znacky-modely=70%3A1241%7C13%3A1270"
         "&cena-do=300000&vyrobeno-od=2016&objem-od=1200&palivo=benzin%2Chybridni&typ=mpv%2Cpick-up",
+    "Kia Ceed SW (1.6 GDI atmosféra)":
+        "https://www.sauto.cz/inzerce/osobni?znacky-modely=39%3A1334%2C9377"
+        "&cena-do=300000&vyrobeno-od=2017&vyrobeno-do=2026&objem-od=1500&palivo=benzin&typ=kombi",
 }
 
 # --- kritéria zařazení nového auta ---
-# Atmosféra (bez turba) = jednoduchý motor. Bereme jen tyto objemy (1.6 SCe / 1.6 VTi).
-OBJEMY_NA = {1597, 1598, 1600}
+# Atmosféra (bez turba) = jednoduchý motor. Bereme jen tyto objemy:
+#   1597/1600 = Dacia 1.6 SCe (H4M), 1598 = Citroën/Peugeot 1.6 VTi, 1591 = Kia 1.6 GDI.
+# Pozn.: některé objemy sdílí i turbo verze (1598 = i Citroën 1.6 THP / Kia 1.6 T-GDI,
+# 1591 = i Kia 1.6 T-GDI GT) – proto navíc strop výkonu níže.
+OBJEMY_NA = {1591, 1597, 1598, 1600}
+MAX_VYKON_NA = 105            # kW – nad tím už je to turbo (atmosféry zde mají ≤103 kW)
 KLIMA_POVINNA = True          # auto bez klimy se nepřidává
 VYRADIT_LPG = True            # LPG = systém navíc, nepřidáváme automaticky (jen nahlásíme)
 MIN_ROK = 2016                # starší auta nezařazujeme (i kdyby je filtr vrátil)
@@ -78,6 +85,8 @@ def motor_kod(znacka, objem):
         return "1.6 SCe (H4M)"
     if "citro" in z or "peugeot" in z:
         return "1.6 VTi 120 (EP6C/5FS)"
+    if "kia" in z or "hyundai" in z:
+        return "1.6 GDI (G4FG)"
     return f"{objem} ccm (atmosféra)"
 
 # --- pořadí sloupců v exportu ---
