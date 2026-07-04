@@ -83,6 +83,24 @@ def _ac_name(item):
     return ac.get("name") if isinstance(ac, dict) else ac
 
 
+def klima_tier(klima):
+    """Zařadí text klimatizace do tieru pro skóre: 'auto' / 'manual' / 'bez'.
+
+    'bez' dostane i prázdná/neznámá hodnota ('?', None) – neověřená klima
+    auto nezvýhodní (stejný princip jako u ostatních neznámých údajů)."""
+    t = str(klima).strip().lower()
+    if t in ("", "nan", "none", "?") or "bez klim" in t:
+        return "bez"
+    if "utomat" in t:
+        return "auto"
+    return "manual"
+
+
+def nema_klimu(klima):
+    """True, pokud text klimatizace znamená 'bez klimatizace' (ne neznámá)."""
+    return "bez klim" in str(klima).strip().lower()
+
+
 def prodejce_name(item):
     """Název prodejce (AAA AUTO, Auto ESA…) z premise. Bez premise = soukromý.
 
@@ -248,8 +266,7 @@ def prepocti(df, dnes=None):
     df["retrofit_Kc"] = df.apply(_retrofit_kc, axis=1)
     df["retrofit_co"] = df.apply(_retrofit_co, axis=1)
     df["efektivni_cena_Kc"] = df["cena_Kc"] + df["retrofit_Kc"]
-    df["klima_skore"] = df["klima"].apply(
-        lambda k: C.KLIMA_SKORE["auto"] if "utomat" in str(k) else C.KLIMA_SKORE["manual"])
+    df["klima_skore"] = df["klima"].map(lambda k: C.KLIMA_SKORE[klima_tier(k)])
 
     df["_stk"] = df["STK_do"].map(
         lambda s: (parse_date(s) - dnes).days if parse_date(s) else 0)
@@ -267,11 +284,12 @@ def prepocti(df, dnes=None):
         + df["klima_skore"] * w["klima"]
     ).round(1)
 
-    df["_sold"] = (df["stav"] == "PRODÁNO").astype(int)
-    df = df.sort_values(["_sold", "skore"], ascending=[True, False]).reset_index(drop=True)
+    # vše, co není aktivní (PRODÁNO, VYŘAZENO…), spadne pod aktivní auta
+    df["_off"] = (df["stav"] != "aktivní").astype(int)
+    df = df.sort_values(["_off", "skore"], ascending=[True, False]).reset_index(drop=True)
     df["poradi"] = range(1, len(df) + 1)
 
-    df = df.drop(columns=["_stk", "_rok", "_sold"])
+    df = df.drop(columns=["_stk", "_rok", "_off"])
     for c in C.SLOUPCE:
         if c not in df.columns:
             df[c] = float("nan")
@@ -304,7 +322,7 @@ def nove_auto_row(item, vin_rep, dnes=None):
               if isinstance(item.get("manufacturer_cb"), dict) else None) or ""
     has_tempo = any("empoma" in x.lower() or "cruise" in x.lower() for x in eq)
     park = [x for x in eq if "arkov" in x.lower() or "amera" in x.lower()]
-    ac = _ac_name(item) or "Manuální"
+    ac = _ac_name(item) or "?"          # neznámou klimu nehlásíme jako manuální
 
     in_op = item.get("in_operation_date")
     manuf = item.get("manufacturing_date")

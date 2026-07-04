@@ -27,7 +27,7 @@ def main(dry_run=False, send_email=True):
     df["_id"] = df["url"].map(lib.id_from_url)
     znama_id = set(df["_id"].dropna().astype(int))
 
-    nove_prodano, znovu_aktivni, nejiste = [], [], []
+    nove_prodano, znovu_aktivni, nejiste, vyrazeno = [], [], [], []
 
     # 1) kontrola stavu existujících inzerátů
     print("=== 1) Kontrola stavu inzerátů ===")
@@ -38,6 +38,14 @@ def main(dry_run=False, send_email=True):
         # doplníme prodejce u starších řádků (sloupec přibyl později)
         if item and (pd.isna(r.get("prodejce")) or not str(r.get("prodejce")).strip()):
             df.at[idx, "prodejce"] = lib.prodejce_name(item)
+        # osvěžíme klimu z živého API (starší řádky mívají zastaralý/špatný údaj –
+        # mj. ručně naseedované auta měly "Manuální" i bez klimatizace)
+        bez_klimy = False
+        if item:
+            ac = lib._ac_name(item)
+            if ac:
+                df.at[idx, "klima"] = ac
+                bez_klimy = lib.nema_klimu(ac)
         if stav_api == "error":
             # nepodařilo se zeptat – stav NECHÁVÁME být (neoznačit jako prodané!)
             nejiste.append(r["vuz"])
@@ -55,11 +63,19 @@ def main(dry_run=False, send_email=True):
             snap["poradi"] = int(snap["poradi"]) if pd.notna(snap["poradi"]) else None
             nove_prodano.append(snap)
             print(f"  🔴 NOVĚ PRODÁNO (#{snap['poradi']}): {r['vuz']}")
-        elif not je_pryc and bylo_prodano:
+        elif not je_pryc and bylo_prodano and not bez_klimy:
             df.at[idx, "stav"] = "aktivní"
             znovu_aktivni.append(r["vuz"])
             print(f"  🟢 ZNOVU AKTIVNÍ: {r['vuz']}")
-    if not nove_prodano and not znovu_aktivni:
+
+        # KLIMA_POVINNA platí i pro auta, co se do žebříčku dostala dřív (ručně
+        # naseedované) nebo se vracejí z PRODÁNO. Rozhodujeme na FINÁLNÍM stavu:
+        # když inzerát hlásí "bez klimatizace", auto z aktivního pořadí vyřadíme.
+        if C.KLIMA_POVINNA and bez_klimy and df.at[idx, "stav"] == "aktivní":
+            df.at[idx, "stav"] = "VYŘAZENO – bez klimy"
+            vyrazeno.append(r["vuz"])
+            print(f"  🚫 VYŘAZENO (bez klimatizace): {r['vuz']}")
+    if not nove_prodano and not znovu_aktivni and not vyrazeno:
         print("  beze změny – vše jako dřív")
     if nejiste:
         print(f"  ⚠️ {len(nejiste)} inzerátů se nepodařilo ověřit (síť) – stav ponechán beze změny")
@@ -122,7 +138,7 @@ def main(dry_run=False, send_email=True):
     pro = (df["stav"] == "PRODÁNO").sum()
     print(f"\nSOUHRN: {akt} aktivních + {pro} prodaných")
     print(f"  nově prodáno: {len(nove_prodano)} | znovu aktivní: {len(znovu_aktivni)} "
-          f"| přidáno nových: {len(pridano)}")
+          f"| přidáno nových: {len(pridano)} | vyřazeno (bez klimy): {len(vyrazeno)}")
     if not dry_run:
         print("\nTOP 5:")
         for _, r in df[df["stav"] == "aktivní"].head(5).iterrows():
@@ -131,7 +147,7 @@ def main(dry_run=False, send_email=True):
 
     # 5) e-mail
     changes = {"prodano": nove_prodano, "aktivni": znovu_aktivni, "pridano": pridano}
-    ma_zmenu = bool(nove_prodano or znovu_aktivni or pridano)
+    ma_zmenu = bool(nove_prodano or znovu_aktivni or pridano or vyrazeno)
     if not dry_run and send_email and C.EMAIL.get("enabled"):
         if C.EMAIL.get("only_on_change") and not ma_zmenu:
             print("  📭 beze změny – e-mail se neposílá")

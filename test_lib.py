@@ -182,6 +182,51 @@ def test_prepocti_klima_skore_bonus():
     assert man["klima_skore"] == C.KLIMA_SKORE["manual"]
 
 
+@pytest.mark.parametrize("klima,tier", [
+    ("Automatická", "auto"),
+    ("Dvouzónová automatická", "auto"),
+    ("Manuální", "manual"),
+    ("Bez klimatizace", "bez"),
+    ("?", "bez"),
+    ("", "bez"),
+    (None, "bez"),
+])
+def test_klima_tier(klima, tier):
+    assert lib.klima_tier(klima) == tier
+
+
+def test_nema_klimu():
+    assert lib.nema_klimu("Bez klimatizace") is True
+    assert lib.nema_klimu("Manuální") is False
+    assert lib.nema_klimu("?") is False        # neznámá ≠ prokazatelně bez klimy
+
+
+def test_prepocti_bez_klimy_nedostane_bonus():
+    # auto bez klimatizace nesmí dostat manuální bonus (40), ale 0
+    df = pd.DataFrame([
+        _df_radek(vin="MAN", url="https://x/1", klima="Manuální"),
+        _df_radek(vin="BEZ", url="https://x/2", klima="Bez klimatizace"),
+    ])
+    out = lib.prepocti(df, dnes=dt.date(2026, 6, 12))
+    man = out[out["vin"] == "MAN"].iloc[0]
+    bez = out[out["vin"] == "BEZ"].iloc[0]
+    assert bez["klima_skore"] == C.KLIMA_SKORE["bez"] == 0
+    assert man["klima_skore"] == C.KLIMA_SKORE["manual"]
+    assert man["skore"] > bez["skore"]
+
+
+def test_prepocti_vyrazene_auto_pod_aktivnimi():
+    # VYŘAZENO (bez klimy) se řadí pod aktivní, i kdyby mělo lepší parametry
+    df = pd.DataFrame([
+        _df_radek(vin="OUT", url="https://x/1", stav="VYŘAZENO – bez klimy",
+                  najezd_km=10000),
+        _df_radek(vin="LIVE", url="https://x/2", stav="aktivní", najezd_km=200000),
+    ])
+    out = lib.prepocti(df, dnes=dt.date(2026, 6, 12))
+    assert out.iloc[0]["stav"] == "aktivní"
+    assert out.iloc[-1]["vin"] == "OUT"
+
+
 def test_prepocti_chybejici_majitele_nespadne():
     # nové auto bez počtu majitelů (VIN neměl údaj) -> "?" ve sloupci.
     # Scoring nesmí spadnout a auto má dostat nejhorší konec škály.
