@@ -1,4 +1,4 @@
-# Žebříček ojetých aut (Citroën Berlingo / Peugeot Partner / Dacia Lodgy+Dokker)
+# Žebříček ojetých aut (Berlingo / Partner / Lodgy+Dokker / Ceed SW / i30 kombi)
 
 Skripty pro denní aktualizaci scoreboardu kandidátů na koupi. Vše na jednom místě:
 data, skripty i venv.
@@ -53,11 +53,25 @@ nano .env                  # vyplň AUTA_SMTP_USER / AUTA_SMTP_PASS a dej AUTA_M
 - Proměnná z prostředí má přednost před `.env` (hodí se pro cron/CI).
 - `./aktualizovat.sh --no-email` = aktualizace bez odeslání.
 
-## Denní spouštění (cron)
-Každý den v 9:00:
+## Nasazení (produkce)
+Běží na Raspberry Pi: **`pi@Doma:~/auta`**. Kód se tam dostává z GitHubu
+(`git@github.com:flaiming/car-watchdog.git`); `zebricek.xlsx` na Pi jsou **živá
+data** (cron je průběžně aktualizuje) – při deployi se nesmí přepsat verzí z repa.
+
+Cron na Pi spouští aktualizaci každou hodinu od 7 do 22:
 ```cron
-0 9 * * *  /home/flaim/auta/aktualizovat.sh >> /home/flaim/auta/aktualizace.log 2>&1
+5 7-22 * * * /home/pi/auta/aktualizovat.sh >> /home/pi/auta/aktualizace.log 2>&1
 ```
+
+Deploy nové verze (z vývojového stroje):
+```bash
+git push
+ssh pi@Doma 'cd ~/auta && git fetch origin \
+  && git reset origin/main && git checkout -- . ":(exclude)zebricek.xlsx"'
+```
+`git status` na Pi bude `zebricek.xlsx` hlásit jako modified – to je v pořádku
+(živá data se od commitnutého snapshotu liší). `.env` je v `.gitignore`, deploy
+se ho nedotkne.
 
 ## Scoring (váhy)
 nájezd 28 % · efektivní cena 24 % · rok 19 % · majitelé 14 % · STK 10 % · klima 5 %
