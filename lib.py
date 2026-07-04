@@ -362,7 +362,7 @@ def nove_auto_row(item, vin_rep, dnes=None):
         "park_senzory": ("✅ " + ", ".join(p.replace("Parkovací senzory ", "")
                                             for p in park)) if park else "—",
         "klima": ac,
-        "motor_kod": C.motor_kod(znacka, item.get("engine_volume")),
+        "motor_kod": C.motor_kod(znacka, item.get("engine_volume"), item.get("name")),
         "turbo": "NE",
         "rozvod": "řetěz",
         "udrzba": "jednoduchá – bez turba",

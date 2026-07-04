@@ -73,6 +73,21 @@ def test_classify_kia_gdi_atmosfera_projde():
     assert ok is True
 
 
+def test_classify_hyundai_mpi_projde():
+    # Hyundai i30 1.6 MPI 88 kW (objem 1591) je atmosféra – musí projít
+    it = _item(1591, "Manuální", "Hyundai i30, 1.6 MPI, ČR")
+    it["engine_power"] = 88
+    ok, _ = lib.classify(it)
+    assert ok is True
+
+
+def test_classify_i30_maly_objem_vyradit():
+    # menší benzíny i30 (1.5 DPI/CVVT = 1498, 1.0 T-GDI = 998) jsou pod 1.6 -> ven
+    for vol in (1498, 998):
+        ok, duvod = lib.classify(_item(vol, "Manuální", "Hyundai i30 kombi"))
+        assert ok is False and "atmosféra" in duvod
+
+
 def test_classify_turbo_dle_vykonu_vyradit():
     # stejný objem jako atmosféra (1598), ale 110 kW = turbo (Kia/Citroën) -> ven
     it = _item(1598, "Manuální", "Kia 1.6 T-GDi")
@@ -91,6 +106,18 @@ def test_classify_bez_klimy_vyradit():
 def test_classify_lpg_vyradit():
     ok, duvod = lib.classify(_item(1598, "Manuální", "Dacia Dokker 1.6 LPG"))
     assert ok is False and "lpg" in duvod.lower()
+
+
+# ---------- motor_kod ----------
+@pytest.mark.parametrize("znacka,nazev,expected", [
+    ("Hyundai", "Hyundai i30, 1.6 MPI, ČR", "1.6 MPI/CVVT (G4FC/G4FG)"),
+    ("Hyundai", "Hyundai i30 1.6 CVVT kombi", "1.6 MPI/CVVT (G4FC/G4FG)"),
+    ("Kia", "Kia Ceed SW 1.6 DPI", "1.6 DPI (Smartstream)"),
+    ("Kia", "Kia Cee´d 1.6 GDI", "1.6 GDI (G4FG)"),
+    ("Kia", "Kia Cee´d", "1.6 GDI (G4FG)"),          # bez varianty v názvu
+])
+def test_motor_kod_kia_hyundai_varianty(znacka, nazev, expected):
+    assert C.motor_kod(znacka, 1591, nazev) == expected
 
 
 # ---------- parse_vin ----------
