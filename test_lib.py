@@ -34,9 +34,11 @@ def test_id_from_url():
 
 # ---------- classify ----------
 def _item(vol=1598, ac="Manuální", name="Dacia Lodgy 1.6 SCe",
-          rok="2019-01-01", km=80000):
+          rok="2019-01-01", km=80000, palivo="Benzín", cena=250000):
     return {"name": name, "engine_volume": vol,
             "aircondition_cb": {"name": ac} if ac else None,
+            "fuel_cb": {"name": palivo} if palivo else None,
+            "price": cena,
             "in_operation_date": rok, "tachometer": km}
 
 
@@ -106,6 +108,39 @@ def test_classify_bez_klimy_vyradit():
 def test_classify_lpg_vyradit():
     ok, duvod = lib.classify(_item(1598, "Manuální", "Dacia Dokker 1.6 LPG"))
     assert ok is False and "lpg" in duvod.lower()
+
+
+def test_classify_nafta_vyradit():
+    # Regrese 7.7.2026: sauto do výsledků filtru přimíchalo topovaný inzerát
+    # mimo filtr – Kia 1.6 CRDi (nafta) má 1598 ccm a 100 kW, takže prošla
+    # kontrolou objemu i výkonu. Palivo se musí hlídat i v classify.
+    it = _item(1598, "Automatická", "Kia Cee´d, 1.6 CRDi, Záruka",
+               palivo="Nafta", cena=320000)
+    it["engine_power"] = 100
+    ok, duvod = lib.classify(it)
+    assert ok is False and "palivo" in duvod.lower()
+
+
+def test_classify_cena_nad_strop_vyradit():
+    # topovaný inzerát může podlézt i cenový filtr v URL
+    ok, duvod = lib.classify(_item(cena=320000))
+    assert ok is False and "cena" in duvod
+
+
+def test_classify_cena_na_hranici_projde():
+    ok, _ = lib.classify(_item(cena=C.MAX_CENA))
+    assert ok is True
+
+
+def test_classify_hybrid_projde():
+    ok, _ = lib.classify(_item(palivo="Hybridní"))
+    assert ok is True
+
+
+def test_classify_nezname_palivo_a_cena_projde():
+    # chybějící údaj auto nevyřadí – hlavní síto zůstává objem motoru
+    ok, _ = lib.classify(_item(palivo=None, cena=None))
+    assert ok is True
 
 
 # ---------- motor_kod ----------

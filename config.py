@@ -66,6 +66,12 @@ FILTRY = {
 # 1591 = i Kia 1.6 T-GDI GT) – proto navíc strop výkonu níže.
 OBJEMY_NA = {1591, 1597, 1598, 1600}
 MAX_VYKON_NA = 105            # kW – nad tím už je to turbo (atmosféry zde mají ≤103 kW)
+# Palivo a cenu musí hlídat i classify, ne jen URL filtr: sauto do výsledků
+# míchá "topované" (placené) inzeráty mimo zadaný filtr. 7.7.2026 tak prošel
+# diesel Kia 1.6 CRDi za 320 000 Kč – má 1598 ccm (stejně jako benzínové
+# atmosféry) a 100 kW, takže kontrolou objemu i výkonu proklouzl.
+PALIVA_OK = ("benz", "hybrid")  # podřetězce názvu paliva ze sauto (Benzín, Hybridní…)
+MAX_CENA = 300000             # Kč – stejný strop jako cena-do ve filtrech
 KLIMA_POVINNA = True          # auto bez klimy se nepřidává
 VYRADIT_LPG = True            # LPG = systém navíc, nepřidáváme automaticky (jen nahlásíme)
 MIN_ROK = 2016                # starší auta nezařazujeme (i kdyby je filtr vrátil)

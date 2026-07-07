@@ -124,6 +124,17 @@ def classify(item):
     ac = _ac_name(item)
     has_ac = bool(ac) and "bez klimat" not in str(ac).lower()
 
+    # palivo + cena: URL filtr je nehlídá spolehlivě – sauto do výsledků míchá
+    # topované inzeráty mimo filtr (viz config.PALIVA_OK / MAX_CENA).
+    # Neznámé palivo/cenu nevyřazujeme – hlavní síto je objem níže.
+    palivo = item.get("fuel_cb")
+    palivo = (palivo.get("name") if isinstance(palivo, dict) else palivo) or ""
+    if palivo and not any(p in palivo.lower() for p in C.PALIVA_OK):
+        return False, f"palivo {palivo} (bereme jen benzín/hybrid)"
+    cena = item.get("price")
+    if isinstance(cena, (int, float)) and cena > C.MAX_CENA:
+        return False, f"cena {int(cena)} Kč > {C.MAX_CENA} (mimo profil)"
+
     if vol not in C.OBJEMY_NA:
         return False, f"není atmosféra 1.6 ({vol} ccm – turbo/diesel/jiné)"
     # Strop výkonu: některé objemy sdílí turbo verze (1598 THP/T-GDI, 1591 T-GDI GT).
