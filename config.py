@@ -50,17 +50,18 @@ FILTRY = {
     "Kia Ceed SW (1.6 GDI atmosféra)":
         "https://www.sauto.cz/inzerce/osobni?znacky-modely=39%3A1334%2C9377"
         "&cena-do=300000&vyrobeno-od=2017&vyrobeno-do=2026&objem-od=1500&palivo=benzin&typ=kombi",
-    # vykon-do=105kw (ne 90): 1.6 MPI/CVVT má dle verze až ~95 kW, s 90kw by
-    # z výsledků vypadl. Turba se stejně vyřadí v classify (MAX_VYKON_NA).
-    "Hyundai i30 kombi (1.6 MPI/DPI/CVVT)":
+    # objem-od=1580 místo stropu výkonu: chceme i 1.6 GDI, malé turbo motory
+    # (1.0/1.4 T-GDI) odfiltruje objem a 1.6 T-GDi (~150 kW) vyřadí classify
+    # (MAX_VYKON_NA) – atmosféry 1.6 mají ≤103 kW.
+    "Hyundai i30 kombi (1.6 atmosféra vč. GDI)":
         "https://www.sauto.cz/inzerce/osobni/hyundai/i30?cena-do=300000"
-        "&vyrobeno-od=2017&vyrobeno-do=2026&km-do=150000&vykon-do=105kw&palivo=benzin&typ=kombi",
+        "&vyrobeno-od=2016&vyrobeno-do=2026&km-do=150000&objem-od=1580&palivo=benzin&typ=kombi",
 }
 
 # --- kritéria zařazení nového auta ---
 # Atmosféra (bez turba) = jednoduchý motor. Bereme jen tyto objemy (min 1.6):
 #   1597/1600 = Dacia 1.6 SCe (H4M), 1598 = Citroën/Peugeot 1.6 VTi,
-#   1591 = Kia 1.6 GDI + Hyundai 1.6 MPI/CVVT, 1598 = i Smartstream 1.6 MPI/DPI.
+#   1591 = Kia/Hyundai 1.6 GDI + 1.6 MPI/CVVT, 1598 = i Smartstream 1.6 MPI/DPI.
 # Menší benzíny i30/Ceed (1.5 DPI/CVVT = 1498, 1.0 T-GDI = 998) záměrně nechytáme.
 # Pozn.: některé objemy sdílí i turbo verze (1598 = i Citroën 1.6 THP / Kia 1.6 T-GDI,
 # 1591 = i Kia 1.6 T-GDI GT) – proto navíc strop výkonu níže.

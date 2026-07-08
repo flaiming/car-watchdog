@@ -75,6 +75,14 @@ def test_classify_kia_gdi_atmosfera_projde():
     assert ok is True
 
 
+def test_classify_hyundai_gdi_projde():
+    # Hyundai i30 1.6 GDI 99 kW (objem 1591) je atmosféra – chceme i GDI
+    it = _item(1591, "Manuální", "Hyundai i30, 1.6 GDI kombi")
+    it["engine_power"] = 99
+    ok, _ = lib.classify(it)
+    assert ok is True
+
+
 def test_classify_hyundai_mpi_projde():
     # Hyundai i30 1.6 MPI 88 kW (objem 1591) je atmosféra – musí projít
     it = _item(1591, "Manuální", "Hyundai i30, 1.6 MPI, ČR")
