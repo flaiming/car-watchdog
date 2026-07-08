@@ -38,6 +38,15 @@ EMAIL = {
     "only_on_change": _bool("AUTA_MAIL_ONLY_ON_CHANGE", True),
 }
 
+# --- VIN registr (oficiální API Ministerstva dopravy) ---
+# Dřív se scrapovala kontrola-vin.cz, ta ale nasadila Cloudflare (403 z Pi).
+# Oficiální Registr silničních vozidel má veřejné REST API s free klíčem
+# (registrace: https://dataovozidlech.cz/registraceapi, limit 27 dotazů/min).
+# Dává počet vlastníků, platnost STK a technická data – NE historii tachometru
+# (stáčení). Klíč patří do .env (AUTA_DOV_API_KEY), viz .env.example.
+DOV_API_URL = "https://api.dataovozidlech.cz/api/vehicletechnicaldata/v2"
+DOV_API_KEY = os.environ.get("AUTA_DOV_API_KEY", "")
+
 # --- sauto filtry (stejné, jako sleduješ v prohlížeči) ---
 # Klíč = jen popisek do logu, hodnota = URL filtru.
 FILTRY = {

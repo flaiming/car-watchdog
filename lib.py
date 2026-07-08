@@ -165,7 +165,84 @@ def classify(item):
     return True, "OK – atmosféra 1.6 + klima"
 
 
-# ---------- VIN registr ----------
+# ---------- VIN registr (oficiální API Ministerstva dopravy) ----------
+def _prazdny_report(odo_str="", source="none"):
+    """Report bez dat – auto se přidá, ale bez ověření z registru."""
+    return {"owners": None, "stk_do": None, "prvni_reg": None,
+            "odo": [], "odo_str": odo_str, "tampered": False, "ok": False,
+            "found": False, "source": source}
+
+
+def dov_vehicle(vin):
+    """Detail vozidla z oficiálního API dataovozidlech.cz. Vrací (stav, data):
+
+      ("ok",     Data)   – vozidlo nalezeno (dict s technickými údaji)
+      ("gone",   None)   – klíč OK, ale vozidlo v registru není
+      ("error",  None)   – nepodařilo se zeptat (chybí klíč, limit, síť, 401…)
+
+    Rozdíl "gone" vs "error" je zásadní stejně jako u sauto_check: na "error"
+    se nesmí tvrdit, že auto v registru není."""
+    if not C.DOV_API_KEY:
+        print("  ! dataovozidlech: chybí AUTA_DOV_API_KEY (.env) – VIN se neověří")
+        return ("error", None)
+    req = urllib.request.Request(
+        f"{C.DOV_API_URL}?vin={vin}",
+        headers={"API_KEY": C.DOV_API_KEY, "Accept": "application/json"})
+    try:
+        raw = urllib.request.urlopen(req, timeout=25).read()
+    except urllib.error.HTTPError as e:
+        # 429/limit i 401 = nejisté, NE "auto není"; 404 by taky bylo nejisté
+        print(f"  ! dataovozidlech({vin}) HTTP {e.code}")
+        return ("error", None)
+    except Exception as e:
+        print(f"  ! dataovozidlech({vin}) síť: {e}")
+        return ("error", None)
+    try:
+        data = json.loads(raw)
+    except Exception as e:
+        print(f"  ! dataovozidlech({vin}) JSON: {e}")
+        return ("error", None)
+    vozidlo = data.get("Data")
+    if not vozidlo:
+        return ("gone", None)          # klíč platný, ale VIN v registru není
+    return ("ok", vozidlo)
+
+
+def report_z_dov(vozidlo):
+    """Sestaví VIN report z odpovědi API (čistá funkce, bez sítě).
+
+    API dává počet vlastníků, platnost STK a 1. registraci – NE historii
+    tachometru, takže stáčení tudy ověřit nejde (ok/tampered zůstávají False)."""
+    rep = _prazdny_report(source="api")
+    rep["found"] = True
+    ov = vozidlo.get("PocetVlastniku")
+    rep["owners"] = int(ov) if isinstance(ov, (int, float)) else None
+    stk = vozidlo.get("PravidelnaTechnickaProhlidkaDo")
+    rep["stk_do"] = str(stk)[:10] if stk else None
+    reg = (vozidlo.get("DatumPrvniRegistraceVCr")
+           or vozidlo.get("DatumPrvniRegistrace"))
+    rep["prvni_reg"] = str(reg)[:10] if reg else None
+    return rep
+
+
+def vin_report(vin):
+    """Ověří VIN přes oficiální registr (dataovozidlech.cz).
+
+    Vrací report se stejnými klíči jako dřív (owners/odo/odo_str/tampered/ok)
+    plus stk_do, prvni_reg, found, source – aby na něj navazující kód i testy
+    nemusely měnit tvar. Historii tachometru API nemá, takže odo je vždy [].
+    """
+    stav, vozidlo = dov_vehicle(vin)
+    if stav == "ok":
+        return report_z_dov(vozidlo)
+    if stav == "gone":
+        return _prazdny_report(odo_str="není v registru MD", source="api")
+    return _prazdny_report(odo_str="VIN nelze ověřit (API nedostupné)", source="error")
+
+
+# ---------- historie tachometru (jen ruční doplnění z prohlížeče) ----------
+# kontrola-vin.cz je za Cloudflare, z Pi ji automat nenačte (403). Tyhle dvě
+# funkce zůstávají pro občasné ruční doověření stáčení přes prohlížeč (extension).
 def _vin_text(vin):
     html = _get(f"https://www.kontrola-vin.cz/{vin}").decode("utf-8", "replace")
     html = re.sub(r'<script.*?</script>', '', html, flags=re.S)
@@ -198,16 +275,6 @@ def parse_vin(t):
     out["tampered"] = any(kms[i] - kms[i + 1] > 500 for i in range(len(kms) - 1))
     out["ok"] = bool(seen) and not out["tampered"]
     return out
-
-
-def vin_report(vin):
-    """Stáhne kontrola-vin.cz a zavolá parse_vin. Při chybě sítě vrátí prázdný report."""
-    try:
-        t = _vin_text(vin)
-    except Exception as e:
-        return {"owners": None, "odo": [], "odo_str": f"VIN nelze načíst: {e}",
-                "tampered": False, "ok": False}
-    return parse_vin(t)
 
 
 # ---------- pomocné ----------
@@ -323,6 +390,29 @@ def _sauto_url(item):
     return f"https://www.sauto.cz/osobni/detail/{znacka}/{model}/{item.get('id')}"
 
 
+def _verdikt(vin_rep):
+    """Text verdiktu podle zdroje reportu.
+
+    Historii tachometru (stáčení) dává jen ruční doplnění z prohlížeče
+    (klíče tampered/odo). Oficiální API tacho nemá – jen potvrdí, že auto je
+    v registru a s kolika vlastníky. Neznámé/nedostupné = neutvrzujeme nic."""
+    if vin_rep.get("tampered"):
+        v = "⚠️ PODEZŘENÍ NA STÁČENÍ – ověřit"
+    elif vin_rep.get("odo"):
+        v = "OK – bez stáčení (monotónní)" if vin_rep.get("ok") \
+            else "nelze ověřit (bez záznamů odometru)"
+    elif vin_rep.get("source") == "api":
+        v = "registr MD ✓ (tacho neověřeno)" if vin_rep.get("found") \
+            else "není v registru MD (neověřeno)"
+    elif vin_rep.get("source") == "error":
+        v = "nelze ověřit (registr MD nedostupný)"
+    else:
+        v = "nelze ověřit (bez záznamů odometru)"
+    if vin_rep.get("owners") and vin_rep["owners"] >= 4:
+        v += f" ({vin_rep['owners']} majitelé)"
+    return v
+
+
 def nove_auto_row(item, vin_rep, dnes=None):
     """Sestaví řádek do žebříčku z sauto detailu + VIN reportu.
 
@@ -345,17 +435,13 @@ def nove_auto_row(item, vin_rep, dnes=None):
     elif manuf:
         prvni_reg = str(manuf)[:4]
 
+    # STK a 1. registrace z registru MD jsou autoritativnější než ze sauto,
+    # když je máme z API; jinak padáme na hodnoty z inzerátu.
     stk = item.get("stk_date")
-    stk_do = str(stk)[:10] if stk else ""
+    stk_do = vin_rep.get("stk_do") or (str(stk)[:10] if stk else "")
+    prvni_reg = vin_rep.get("prvni_reg") or prvni_reg
 
-    if vin_rep["tampered"]:
-        verdikt = "⚠️ PODEZŘENÍ NA STÁČENÍ – ověřit"
-    elif vin_rep["ok"]:
-        verdikt = "OK – bez stáčení (monotónní)"
-    else:
-        verdikt = "nelze ověřit (bez záznamů odometru)"
-    if vin_rep["owners"] and vin_rep["owners"] >= 4:
-        verdikt += f" ({vin_rep['owners']} majitelé)"
+    verdikt = _verdikt(vin_rep)
 
     return {
         "stav": "aktivní",

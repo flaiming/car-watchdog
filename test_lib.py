@@ -198,6 +198,122 @@ def test_parse_vin_bez_zaznamu():
     assert r["odo"] == [] and r["ok"] is False
 
 
+# ---------- dataovozidlech API (oficiální registr MD) ----------
+def _dov_data(**kw):
+    base = {"PocetVlastniku": 2,
+            "PravidelnaTechnickaProhlidkaDo": "2026-12-09T00:00:00",
+            "DatumPrvniRegistraceVCr": "2016-10-19T00:00:00",
+            "DatumPrvniRegistrace": "2016-10-19T00:00:00",
+            "StatusNazev": "PROVOZOVANÉ"}
+    base.update(kw)
+    return base
+
+
+def test_report_z_dov_mapovani():
+    rep = lib.report_z_dov(_dov_data())
+    assert rep["found"] is True and rep["source"] == "api"
+    assert rep["owners"] == 2
+    assert rep["stk_do"] == "2026-12-09"
+    assert rep["prvni_reg"] == "2016-10-19"
+    # API nemá historii tachometru -> stáčení tudy neověříme
+    assert rep["odo"] == [] and rep["tampered"] is False and rep["ok"] is False
+
+
+def test_report_z_dov_chybejici_pole():
+    rep = lib.report_z_dov({"StatusNazev": "PROVOZOVANÉ"})
+    assert rep["found"] is True and rep["owners"] is None
+    assert rep["stk_do"] is None and rep["prvni_reg"] is None
+
+
+def test_dov_vehicle_bez_klice_je_error(monkeypatch):
+    monkeypatch.setattr(C, "DOV_API_KEY", "")
+    assert lib.dov_vehicle("X") == ("error", None)
+
+
+def test_dov_vehicle_ok(monkeypatch):
+    import io, json
+    monkeypatch.setattr(C, "DOV_API_KEY", "KEY")
+    payload = json.dumps({"Status": 1, "Data": _dov_data()}).encode()
+    monkeypatch.setattr(lib.urllib.request, "urlopen",
+                        lambda req, timeout=25: io.BytesIO(payload))
+    stav, data = lib.dov_vehicle("VIN1")
+    assert stav == "ok" and data["PocetVlastniku"] == 2
+
+
+def test_dov_vehicle_neni_v_registru_je_gone(monkeypatch):
+    # platný klíč, ale Data=null -> vozidlo v registru není (NE chyba)
+    import io, json
+    monkeypatch.setattr(C, "DOV_API_KEY", "KEY")
+    payload = json.dumps({"Success": False, "Data": None}).encode()
+    monkeypatch.setattr(lib.urllib.request, "urlopen",
+                        lambda req, timeout=25: io.BytesIO(payload))
+    assert lib.dov_vehicle("VIN1") == ("gone", None)
+
+
+def test_dov_vehicle_401_je_error(monkeypatch):
+    # neplatný/neaktivní klíč nesmí vypadat jako "auto není v registru"
+    import urllib.error
+    monkeypatch.setattr(C, "DOV_API_KEY", "KEY")
+    def _401(req, timeout=25):
+        raise urllib.error.HTTPError(req.full_url, 401, "Unauthorized", {}, None)
+    monkeypatch.setattr(lib.urllib.request, "urlopen", _401)
+    assert lib.dov_vehicle("VIN1") == ("error", None)
+
+
+def test_vin_report_gone_ma_source_api(monkeypatch):
+    monkeypatch.setattr(lib, "dov_vehicle", lambda vin: ("gone", None))
+    rep = lib.vin_report("VIN1")
+    assert rep["found"] is False and rep["source"] == "api"
+
+
+def test_vin_report_error_neoznaci_jako_nenalezeno(monkeypatch):
+    monkeypatch.setattr(lib, "dov_vehicle", lambda vin: ("error", None))
+    rep = lib.vin_report("VIN1")
+    assert rep["found"] is False and rep["source"] == "error"
+
+
+# ---------- _verdikt ----------
+def test_verdikt_api_nalezeno():
+    assert "registr MD" in lib._verdikt(lib.report_z_dov(_dov_data(PocetVlastniku=2)))
+
+
+def test_verdikt_api_ctyri_majitele():
+    v = lib._verdikt(lib.report_z_dov(_dov_data(PocetVlastniku=4)))
+    assert "registr MD" in v and "majitelé" in v
+
+
+def test_verdikt_api_neni_v_registru():
+    assert "registru MD" in lib._verdikt(lib._prazdny_report(source="api"))
+
+
+def test_verdikt_api_nedostupne():
+    v = lib._verdikt(lib._prazdny_report(source="error"))
+    assert "nedostupný" in v
+
+
+def test_verdikt_rucni_staceni():
+    assert "STÁČENÍ" in lib._verdikt({"tampered": True, "odo": [("1.1.2020", 100)]})
+
+
+def test_verdikt_rucni_monotonni():
+    rep = {"tampered": False, "ok": True, "odo": [("1.1.2020", 100)]}
+    assert "bez stáčení" in lib._verdikt(rep)
+
+
+def test_nove_auto_row_bere_stk_z_api():
+    # STK a 1. registrace z registru MD mají přednost před sauto inzerátem
+    item = {"id": 1, "name": "X", "manufacturer_cb": {"name": "Hyundai"},
+            "engine_volume": 1591, "aircondition_cb": {"name": "Automatická"},
+            "stk_date": "2025-01-01", "in_operation_date": "2017-01-01",
+            "equipment_cb": []}
+    vrep = lib.report_z_dov(_dov_data(PravidelnaTechnickaProhlidkaDo="2026-12-09T00:00:00"))
+    row = lib.nove_auto_row(item, vrep)
+    assert row["STK_do"] == "2026-12-09"
+    assert row["prvni_registrace"] == "2016-10-19"
+    assert row["zmen_vlastnika"] == 2
+    assert "registr MD" in row["verdikt"]
+
+
 # ---------- scoring / prepocti ----------
 def _df_radek(**kw):
     base = dict(stav="aktivní", vuz="Test", znacka="Dacia", cena_Kc=200000,

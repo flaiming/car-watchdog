@@ -111,14 +111,15 @@ def main(dry_run=False, send_email=True):
             vrep = {"owners": None, "odo": [], "odo_str": "VIN maskován",
                     "tampered": False, "ok": False}
         else:
-            vrep = lib.vin_report(vin)
-            if vrep["tampered"]:
-                stav = "⚠️ STÁČENÍ"
-            elif vrep["ok"]:
-                stav = "✅ čisté"
+            vrep = lib.vin_report(vin)          # oficiální registr MD (dataovozidlech)
+            if vrep.get("source") == "error":
+                stav = "❓ registr nedostupný"
+            elif not vrep.get("found"):
+                stav = "❓ není v registru MD"
             else:
-                stav = "❓ bez záznamů (zatím neověřeno)"
-            print(f"  ➕ {i} {nazev} → {duvod} | {stav} | majitelé={vrep['owners']}")
+                stk = vrep.get("stk_do") or "?"
+                stav = f"✅ registr MD ({vrep['owners']} vlast., STK do {stk})"
+            print(f"  ➕ {i} {nazev} → {duvod} | {stav}")
         row = lib.nove_auto_row(item, vrep)
         df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
         pridano.append(row["vuz"])
