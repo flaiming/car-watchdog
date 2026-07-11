@@ -119,7 +119,7 @@ def motor_kod(znacka, objem, nazev=""):
     return f"{objem} ccm (atmosféra)"
 
 # --- pořadí sloupců v exportu ---
-SLOUPCE = ["poradi", "stav", "pridano_dne", "skore", "vuz", "znacka", "prodejce", "cena_Kc", "retrofit_Kc",
+SLOUPCE = ["poradi", "stav", "pridano_dne", "prodano_dne", "skore", "vuz", "znacka", "prodejce", "cena_Kc", "retrofit_Kc",
            "efektivni_cena_Kc", "retrofit_co", "najezd_km", "vykon_kW", "rok",
            "zmen_vlastnika", "STK_do", "tempomat", "park_senzory", "klima",
            "klima_skore", "motor_kod", "turbo", "rozvod", "udrzba",

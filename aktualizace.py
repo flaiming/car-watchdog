@@ -33,6 +33,8 @@ def main(dry_run=False, send_email=True):
     print("=== 1) Kontrola stavu inzerátů ===")
     if "prodejce" not in df.columns:
         df["prodejce"] = pd.Series(pd.NA, index=df.index, dtype="object")
+    if "prodano_dne" not in df.columns:
+        df["prodano_dne"] = pd.Series(pd.NA, index=df.index, dtype="object")
     for idx, r in df.iterrows():
         stav_api, item = lib.sauto_check(r["_id"])
         # doplníme prodejce u starších řádků (sloupec přibyl později)
@@ -54,6 +56,7 @@ def main(dry_run=False, send_email=True):
         bylo_prodano = r["stav"] == "PRODÁNO"
         if je_pryc and not bylo_prodano:
             df.at[idx, "stav"] = "PRODÁNO"
+            df.at[idx, "prodano_dne"] = dt.date.today().isoformat()
             # Uložíme celý řádek tak, jak auto vypadalo ve včerejším žebříčku
             # (pořadí, skóre, cena, nájezd…) – po přepočtu se prodaná řadí na
             # konec, takže poradi i skóre by už nesedělo. Mail pak ukáže plné info.
@@ -65,6 +68,7 @@ def main(dry_run=False, send_email=True):
             print(f"  🔴 NOVĚ PRODÁNO (#{snap['poradi']}): {r['vuz']}")
         elif not je_pryc and bylo_prodano and not bez_klimy:
             df.at[idx, "stav"] = "aktivní"
+            df.at[idx, "prodano_dne"] = pd.NA   # vrátilo se do prodeje – datum už neplatí
             znovu_aktivni.append(r["vuz"])
             print(f"  🟢 ZNOVU AKTIVNÍ: {r['vuz']}")
 
