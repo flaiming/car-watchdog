@@ -64,7 +64,7 @@ FILTRY = {
     # (MAX_VYKON_NA) – atmosféry 1.6 mají ≤103 kW.
     "Hyundai i30 kombi (1.6 atmosféra vč. GDI)":
         "https://www.sauto.cz/inzerce/osobni/hyundai/i30?cena-do=300000"
-        "&vyrobeno-od=2016&vyrobeno-do=2026&km-do=150000&objem-od=1580&palivo=benzin&typ=kombi",
+        "&vyrobeno-od=2016&vyrobeno-do=2026&km-do=200000&objem-od=1580&palivo=benzin&typ=kombi",
 }
 
 # --- kritéria zařazení nového auta ---
