@@ -37,6 +37,8 @@ def main(dry_run=False, send_email=True):
         df["prodano_dne"] = pd.Series(pd.NA, index=df.index, dtype="object")
     if "cena_uver_Kc" not in df.columns:
         df["cena_uver_Kc"] = float("nan")
+    if "url_bazar" not in df.columns:
+        df["url_bazar"] = pd.Series(pd.NA, index=df.index, dtype="object")
     for idx, r in df.iterrows():
         stav_api, item = lib.sauto_check(r["_id"])
         # doplníme prodejce u starších řádků (sloupec přibyl později)
@@ -46,6 +48,7 @@ def main(dry_run=False, send_email=True):
         # sloupec ještě není) – bereme ji vždy z živého API
         if item:
             df.at[idx, "cena_uver_Kc"] = lib.cena_uver(item)
+            df.at[idx, "url_bazar"] = lib.bazar_url(item)
         # osvěžíme klimu z živého API (starší řádky mívají zastaralý/špatný údaj –
         # mj. ručně naseedované auta měly "Manuální" i bez klimatizace)
         bez_klimy = False

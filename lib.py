@@ -131,6 +131,47 @@ def cena_uver(item):
     return None
 
 
+# Slugy modelů se na webech bazarů liší od sauto seo_name (Kia "cee-d" vs "ceed").
+BAZAR_MODEL = {"cee-d": "ceed"}
+
+
+def _seo(cb, nahrada=""):
+    return (cb.get("seo_name") or nahrada) if isinstance(cb, dict) else nahrada
+
+
+def bazar_url(item):
+    """Odkaz na inzerát na webu bazaru (AAA AUTO / Auto ESA), jinak None.
+
+    Proč to nejde jednotně: Auto ESA má v sauto custom_id přímo své ID vozu,
+    takže se dá složit rovnou detail. AAA AUTO svoje ID v sauto nemá (custom_id
+    je jiné číslo než v URL), zato jde odkázat na výpis filtrovaný na model
+    a nájezd ±200 km – to vrátí prakticky vždy právě to jedno auto.
+    """
+    prodejce = prodejce_name(item).lower()
+    znacka = _seo(item.get("manufacturer_cb"))
+    model = _seo(item.get("model_cb"))
+    if not znacka or not model:
+        return None
+    model = BAZAR_MODEL.get(model, model)
+
+    if "aaa auto" in prodejce:
+        km = item.get("tachometer")
+        if not isinstance(km, (int, float)):
+            return None
+        return (f"https://www.aaaauto.cz/ojete-vozy/{znacka}/{model}"
+                f"?mileageFrom={int(km) - 200}&mileageTo={int(km) + 200}")
+
+    if "auto esa" in prodejce:
+        cid = str(item.get("custom_id") or "").strip()
+        karoserie = _seo(item.get("vehicle_body_cb"))
+        palivo = _seo(item.get("fuel_cb"))
+        if not (cid.isdigit() and karoserie and palivo):
+            return None
+        return f"https://www.autoesa.cz/{znacka}/{model}/{karoserie}/{palivo}/{cid}"
+
+    return None
+
+
 def classify(item):
     """Rozhodne, jestli auto patří do žebříčku (atmosféra 1.5/1.6 + klima).
 
@@ -532,5 +573,6 @@ def nove_auto_row(item, vin_rep, dnes=None):
         "verdikt": verdikt,
         "vin": item.get("vin"),
         "url": _sauto_url(item),
+        "url_bazar": bazar_url(item),
         "vybava_vse": "; ".join(eq),
     }

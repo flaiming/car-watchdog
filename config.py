@@ -125,4 +125,4 @@ SLOUPCE = ["poradi", "stav", "pridano_dne", "prodano_dne", "skore", "vuz", "znac
            "zmen_vlastnika", "STK_do", "tempomat", "park_senzory", "klima",
            "klima_skore", "motor_kod", "turbo", "rozvod", "udrzba",
            "prvni_registrace", "pojistovna", "odometr_historie", "verdikt",
-           "vin", "url", "vybava_vse"]
+           "vin", "url", "url_bazar", "vybava_vse"]
