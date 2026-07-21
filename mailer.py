@@ -57,6 +57,10 @@ def build_summary(df, changes, datum):
         url = r.get("url")
         vuz = str(r.get("vuz", ""))
         vuz_html = f"<a href='{url}'>{vuz}</a>" if url and pd.notna(url) else vuz
+        # u AAA AUTO / Auto ESA ještě odkaz na jejich vlastní web (akční cena, fotky)
+        bazar = r.get("url_bazar")
+        if bazar and pd.notna(bazar):
+            vuz_html += f" <a href='{bazar}' title='inzerát u bazaru'>↗ bazar</a>"
         return (f"<tr><td>{_misto(r.get('poradi'))}</td><td><b>{r.get('skore', '?')}</b></td>"
                 f"<td>{vuz_html}</td><td>{_prodejce(r)}</td>"
                 f"<td align='right'>{_cena(r)} Kč</td>"

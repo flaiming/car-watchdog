@@ -84,6 +84,17 @@ bot-wall), sauto API tu cenu vrací samo.
   Žebříček se řadí dál podle běžné ceny, slevu vidíš vedle ní.
 - Osvěžuje se při každém běhu (akce se mění), nejen při zařazení auta.
 
+## Odkaz na web bazaru (`url_bazar`)
+Vedle odkazu na sauto se u velkých bazarů generuje i odkaz na jejich vlastní
+inzerát (fotky navíc, akční cena, rezervace) – v mailu jako „↗ bazar".
+- **Auto ESA**: své ID vozu dává do sauto `custom_id`, takže jde složit rovnou
+  detail `/{znacka}/{model}/{karoserie}/{palivo}/{id}`.
+- **AAA AUTO**: svoje ID v sauto nemá (`custom_id` je jiné číslo než v URL) a
+  jejich vyhledávání umí jen km / kód garáže. Odkazujeme proto na výpis
+  filtrovaný na model a nájezd ±200 km – vrátí prakticky vždy právě to jedno auto.
+- Slug modelu se liší od sauto seo_name (Kia `cee-d` → `ceed`), viz `BAZAR_MODEL`.
+- Ostatní prodejci odkaz nedostanou (každý bazar má jinou strukturu URL).
+
 ## Scoring (váhy)
 nájezd 28 % · efektivní cena 24 % · rok 19 % · majitelé 14 % · STK 10 % · klima 5 %
 

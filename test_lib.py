@@ -495,6 +495,43 @@ def test_prepocti_nizsi_najezd_lepsi_skore():
     assert low > high
 
 
+# ---------- bazar_url (odkaz na web bazaru) ----------
+def _item_bazar(prodejce, **kw):
+    it = {"manufacturer_cb": {"seo_name": "hyundai"}, "model_cb": {"seo_name": "i30"},
+          "vehicle_body_cb": {"seo_name": "kombi"}, "fuel_cb": {"seo_name": "benzin"},
+          "premise": {"name": prodejce}, "tachometer": 159523, "custom_id": "865456668"}
+    it.update(kw)
+    return it
+
+
+def test_bazar_url_aaa_filtr_na_najezd():
+    u = lib.bazar_url(_item_bazar("AAA AUTO"))
+    assert u == ("https://www.aaaauto.cz/ojete-vozy/hyundai/i30"
+                 "?mileageFrom=159323&mileageTo=159723")
+
+
+def test_bazar_url_esa_detail_z_custom_id():
+    u = lib.bazar_url(_item_bazar("Auto ESA"))
+    assert u == "https://www.autoesa.cz/hyundai/i30/kombi/benzin/865456668"
+
+
+def test_bazar_url_kia_ceed_slug():
+    # sauto má model_seo "cee-d", oba bazary "ceed"
+    u = lib.bazar_url(_item_bazar("Auto ESA", model_cb={"seo_name": "cee-d"}))
+    assert "/kia/" not in u and u.startswith("https://www.autoesa.cz/hyundai/ceed/")
+
+
+def test_bazar_url_jiny_prodejce_nic():
+    assert lib.bazar_url(_item_bazar("Autobazar Drábek")) is None
+    assert lib.bazar_url(_item_bazar("soukromý prodejce")) is None
+
+
+def test_bazar_url_chybejici_udaje():
+    # AAA bez nájezdu / ESA bez custom_id se odkázat nedá
+    assert lib.bazar_url(_item_bazar("AAA AUTO", tachometer=None)) is None
+    assert lib.bazar_url(_item_bazar("Auto ESA", custom_id=None)) is None
+
+
 # ---------- cena_uver (akční cena při financování) ----------
 def test_cena_uver_nizsi_leasing():
     assert lib.cena_uver({"price": 260000, "price_leasing": 210000}) == 210000
