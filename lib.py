@@ -118,6 +118,19 @@ def prodejce_name(item):
     return name or "soukromý prodejce"
 
 
+def cena_uver(item):
+    """Akční cena při financování (price_leasing), když je nižší než běžná.
+
+    Bazary (AAA, Auto ESA…) inzerují nižší cenu podmíněnou úvěrem – na sautu je
+    v price_leasing, na vlastním webu bazaru jako "akční cena". Do skóre se
+    nepočítá (je podmíněná), ale je vidět v žebříčku i v mailu."""
+    cena, uver = item.get("price"), item.get("price_leasing")
+    if isinstance(cena, (int, float)) and isinstance(uver, (int, float)) \
+            and 0 < uver < cena:
+        return int(uver)
+    return None
+
+
 def classify(item):
     """Rozhodne, jestli auto patří do žebříčku (atmosféra 1.5/1.6 + klima).
 
@@ -373,6 +386,12 @@ def prepocti(df, dnes=None):
     df["retrofit_Kc"] = df.apply(_retrofit_kc, axis=1)
     df["retrofit_co"] = df.apply(_retrofit_co, axis=1)
     df["efektivni_cena_Kc"] = df["cena_Kc"] + df["retrofit_Kc"]
+    # akční cena při financování je jen informativní – do efektivní ceny (a tedy
+    # do skóre) nevstupuje, protože je podmíněná sjednáním úvěru
+    if "cena_uver_Kc" not in df.columns:
+        df["cena_uver_Kc"] = float("nan")
+    df["sleva_uver_Kc"] = pd.to_numeric(df["cena_Kc"], errors="coerce") \
+        - pd.to_numeric(df["cena_uver_Kc"], errors="coerce")
     df["klima_skore"] = df["klima"].map(lambda k: C.KLIMA_SKORE[klima_tier(k)])
 
     df["_stk"] = df["STK_do"].map(
@@ -493,6 +512,7 @@ def nove_auto_row(item, vin_rep, dnes=None):
         "znacka": znacka,
         "prodejce": prodejce_name(item),
         "cena_Kc": item.get("price"),
+        "cena_uver_Kc": cena_uver(item),
         "najezd_km": item.get("tachometer"),
         "vykon_kW": item.get("engine_power"),
         "rok": rok,

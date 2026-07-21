@@ -495,6 +495,31 @@ def test_prepocti_nizsi_najezd_lepsi_skore():
     assert low > high
 
 
+# ---------- cena_uver (akční cena při financování) ----------
+def test_cena_uver_nizsi_leasing():
+    assert lib.cena_uver({"price": 260000, "price_leasing": 210000}) == 210000
+
+
+def test_cena_uver_bez_akce():
+    # bez slevy (nebo stejná cena) = žádná akční cena
+    assert lib.cena_uver({"price": 260000, "price_leasing": 260000}) is None
+    assert lib.cena_uver({"price": 260000, "price_leasing": 0}) is None
+    assert lib.cena_uver({"price": 260000}) is None
+
+
+def test_cena_uver_do_radku_a_slevy():
+    item = {"id": 1, "name": "X", "manufacturer_cb": {"name": "Kia"},
+            "engine_volume": 1598, "aircondition_cb": {"name": "Manuální"},
+            "equipment_cb": [], "price": 260000, "price_leasing": 210000}
+    row = lib.nove_auto_row(item, {"owners": 1, "odo": [], "odo_str": "",
+                                   "tampered": False, "ok": False})
+    assert row["cena_uver_Kc"] == 210000
+    df = lib.prepocti(pd.DataFrame([dict(row, stav="aktivní")]))
+    assert df.loc[0, "sleva_uver_Kc"] == 50000
+    # akční cena je podmíněná úvěrem -> do efektivní ceny (a skóre) nevstupuje
+    assert df.loc[0, "efektivni_cena_Kc"] == 260000 + df.loc[0, "retrofit_Kc"]
+
+
 # ---------- nove_auto_row ----------
 def test_nove_auto_row_sestaveni():
     item = {

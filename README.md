@@ -74,6 +74,16 @@ ssh pi@Doma 'cd ~/auta && git fetch origin \
 (živá data se od commitnutého snapshotu liší). `.env` je v `.gitignore`, deploy
 se ho nedotkne.
 
+## Akční cena (při financování)
+Bazary (AAA AUTO, Auto ESA…) inzerují nižší cenu podmíněnou sjednáním úvěru –
+na svém webu jako „akční cena", na sautu v poli `price_leasing`. **Scrapovat
+aaaauto.cz kvůli tomu netřeba** (a ani to nejde – mají Anubis proof-of-work
+bot-wall), sauto API tu cenu vrací samo.
+- Sloupce `cena_uver_Kc` a `sleva_uver_Kc`; v mailu jako „260 000 / úvěr 210 000".
+- Do skóre **nevstupuje** – je podmíněná úvěrem, který má vlastní náklady.
+  Žebříček se řadí dál podle běžné ceny, slevu vidíš vedle ní.
+- Osvěžuje se při každém běhu (akce se mění), nejen při zařazení auta.
+
 ## Scoring (váhy)
 nájezd 28 % · efektivní cena 24 % · rok 19 % · majitelé 14 % · STK 10 % · klima 5 %
 

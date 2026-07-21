@@ -39,11 +39,11 @@ EMAIL = {
 }
 
 # --- VIN registr (oficiální API Ministerstva dopravy) ---
-# Dřív se scrapovala kontrola-vin.cz, ta ale nasadila Cloudflare (403 z Pi).
 # Oficiální Registr silničních vozidel má veřejné REST API s free klíčem
 # (registrace: https://dataovozidlech.cz/registraceapi, limit 27 dotazů/min).
 # Dává počet vlastníků, platnost STK a technická data – NE historii tachometru
-# (stáčení). Klíč patří do .env (AUTA_DOV_API_KEY), viz .env.example.
+# (stáčení), tu doplňuje kontrola-vin.cz (viz lib.km_historie).
+# Klíč patří do .env (AUTA_DOV_API_KEY), viz .env.example.
 DOV_API_URL = "https://api.dataovozidlech.cz/api/vehicletechnicaldata/v2"
 DOV_API_KEY = os.environ.get("AUTA_DOV_API_KEY", "")
 
@@ -119,7 +119,8 @@ def motor_kod(znacka, objem, nazev=""):
     return f"{objem} ccm (atmosféra)"
 
 # --- pořadí sloupců v exportu ---
-SLOUPCE = ["poradi", "stav", "pridano_dne", "prodano_dne", "skore", "vuz", "znacka", "prodejce", "cena_Kc", "retrofit_Kc",
+SLOUPCE = ["poradi", "stav", "pridano_dne", "prodano_dne", "skore", "vuz", "znacka", "prodejce", "cena_Kc",
+           "cena_uver_Kc", "sleva_uver_Kc", "retrofit_Kc",
            "efektivni_cena_Kc", "retrofit_co", "najezd_km", "vykon_kW", "rok",
            "zmen_vlastnika", "STK_do", "tempomat", "park_senzory", "klima",
            "klima_skore", "motor_kod", "turbo", "rozvod", "udrzba",
