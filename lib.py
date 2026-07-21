@@ -10,6 +10,10 @@ import config as C
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/120.0 Safari/537.36")
 
+# Tolerance poklesu km, než to označíme za stáčení:
+TOL_STK = 500        # mezi dvěma záznamy STK (STK vs SME týž den se liší o pár km)
+TOL_INZERAT = 2000   # inzerát vs poslední STK (prodejci nájezd zaokrouhlují dolů)
+
 
 def _get(url, timeout=25):
     req = urllib.request.Request(url, headers={"User-Agent": UA,
@@ -260,7 +264,7 @@ def parse_km_historie(html):
     """Vyparsuje tabulku 'Historie STK a SME' (sloupec Stav km) z kontrola-vin.cz.
 
     Čistá funkce, bez sítě. Vrací {odo:[(datum,km)], odo_str, tampered, ok}.
-    Tolerance poklesu 500 km (STK a SME týž den se můžou lišit o pár km).
+    Pokles nad TOL_STK mezi záznamy = stáčení.
     """
     out = {"odo": [], "odo_str": "", "tampered": False, "ok": False}
     m = re.search(r'id="box-km".*?</table>', html, flags=re.S)
@@ -288,7 +292,7 @@ def parse_km_historie(html):
     out["odo"] = odo
     out["odo_str"] = "; ".join(f"{datum}:{km}" for datum, km in out["odo"])
     kms = [km for _, km in out["odo"]]
-    out["tampered"] = any(kms[i] - kms[i + 1] > 500 for i in range(len(kms) - 1))
+    out["tampered"] = any(kms[i] - kms[i + 1] > TOL_STK for i in range(len(kms) - 1))
     out["ok"] = bool(kms) and not out["tampered"]
     return out
 
@@ -423,10 +427,12 @@ def _verdikt(vin_rep, najezd=None):
     vlastníky. Neznámé/nedostupné = neutvrzujeme nic.
 
     najezd = km z inzerátu; když je nižší než poslední stav na STK, sedí to
-    ještě hůř než nemonotónní historie – auto od té doby jezdit nepřestalo."""
+    ještě hůř než nemonotónní historie – auto od té doby jezdit nepřestalo.
+    Tolerance je tu volnější (TOL_INZERAT) než mezi záznamy STK: inzeráty
+    nájezd běžně zaokrouhlují dolů ("72 000 km" místo 72 901)."""
     odo = vin_rep.get("odo") or []
     posledni = odo[-1][1] if odo else None
-    if isinstance(najezd, (int, float)) and posledni and najezd < posledni - 500:
+    if isinstance(najezd, (int, float)) and posledni and najezd < posledni - TOL_INZERAT:
         return (f"⚠️ PODEZŘENÍ NA STÁČENÍ – inzerát {int(najezd)} km "
                 f"< STK {posledni} km")
     if vin_rep.get("tampered"):
