@@ -9,7 +9,8 @@ data, skripty i venv.
 2. **Nové ve filtrech** – stáhne sledované sauto filtry a najde ID, která zatím nesledujeme.
 3. **Třídění + ověření** – nová auta protřídí (jen **atmosféra 1.5/1.6 + klima**, bez turba,
    bez LPG), u relevantních ověří VIN přes **oficiální Registr silničních vozidel**
-   (dataovozidlech.cz API): počet vlastníků, platnost STK, 1. registrace. Přidá je.
+   (dataovozidlech.cz API): počet vlastníků, platnost STK, 1. registrace, a doplní
+   **historii tachometru** z kontrola-vin.cz (stáčení). Přidá je.
 4. **Přepočet** – spočítá skóre, seřadí (aktivní dle skóre, prodaná na konec) a uloží.
 
 ## Soubory
@@ -86,10 +87,12 @@ Ověření běží přes oficiální API Registru silničních vozidel
 (registrace: <https://dataovozidlech.cz/registraceapi>, limit 27 dotazů/min),
 který patří do `.env` jako `AUTA_DOV_API_KEY` (viz `.env.example`).
 - Dává **počet vlastníků, platnost STK a 1. registraci** – NE historii tachometru.
-- **Stáčení** (posloupnost km v čase) tudy ověřit nejde: jediné free zdroje
-  (kontrola-vin.cz, kontrolatachometru.cz) mají Cloudflare/captchu a z Pi je
-  automat nenačte. `parse_vin()` + `report_z_dov()` proto zůstávají oddělené –
-  tacho se dá občas doplnit ručně přes prohlížeč (viz commit s doplněním VINů).
+- **Stáčení** se ověřuje zvlášť z [kontrola-vin.cz](https://www.kontrola-vin.cz)
+  (`km_historie()` / `parse_km_historie()`) – parsuje tabulku „Historie STK a SME",
+  tedy stavy km zapsané při technických. Stránka byla 22.6.2026 za Cloudflare
+  (403 z Pi), od 21.7.2026 se načítá zase i z Pi. Kdyby se blokace vrátila,
+  `km_historie()` vrátí `None` a auto se přidá bez ověření tacha.
+- Verdikt hlásí stáčení i tehdy, když inzerát uvádí **míň km než poslední STK**.
 - Bez klíče (nebo při výpadku API) se auto přidá, ale bez ověření z registru.
 
 ## Poznámky / limity

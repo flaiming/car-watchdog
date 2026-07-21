@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-"""Sdílené funkce: sauto API, VIN registr (kontrola-vin.cz), scoring.
+"""Sdílené funkce: sauto API, registr MD + historie tachometru, scoring.
 
 Žádný stav se tu nedrží – jen čisté funkce, které volá aktualizace.py.
 """
-import re, json, html as ihtml, datetime as dt, urllib.request, urllib.error
+import re, json, datetime as dt, urllib.request, urllib.error
 import pandas as pd
 import config as C
 
@@ -226,55 +226,80 @@ def report_z_dov(vozidlo):
 
 
 def vin_report(vin):
-    """Ověří VIN přes oficiální registr (dataovozidlech.cz).
+    """Ověří VIN přes oficiální registr (dataovozidlech.cz) + historii tachometru.
 
     Vrací report se stejnými klíči jako dřív (owners/odo/odo_str/tampered/ok)
     plus stk_do, prvni_reg, found, source – aby na něj navazující kód i testy
-    nemusely měnit tvar. Historii tachometru API nemá, takže odo je vždy [].
+    nemusely měnit tvar. Registr MD dává vlastníky/STK/1. registraci, historii
+    tachometru (stáčení) doplní kontrola-vin.cz – viz km_historie().
     """
     stav, vozidlo = dov_vehicle(vin)
     if stav == "ok":
-        return report_z_dov(vozidlo)
-    if stav == "gone":
-        return _prazdny_report(odo_str="není v registru MD", source="api")
-    return _prazdny_report(odo_str="VIN nelze ověřit (API nedostupné)", source="error")
+        rep = report_z_dov(vozidlo)
+    elif stav == "gone":
+        rep = _prazdny_report(odo_str="není v registru MD", source="api")
+    else:
+        rep = _prazdny_report(odo_str="VIN nelze ověřit (API nedostupné)", source="error")
+
+    km = km_historie(vin)
+    if km and km["odo"]:
+        rep.update(km)          # odo, odo_str, tampered, ok
+    return rep
 
 
-# ---------- historie tachometru (jen ruční doplnění z prohlížeče) ----------
-# kontrola-vin.cz je za Cloudflare, z Pi ji automat nenačte (403). Tyhle dvě
-# funkce zůstávají pro občasné ruční doověření stáčení přes prohlížeč (extension).
-def _vin_text(vin):
-    html = _get(f"https://www.kontrola-vin.cz/{vin}").decode("utf-8", "replace")
-    html = re.sub(r'<script.*?</script>', '', html, flags=re.S)
-    html = re.sub(r'<style.*?</style>', '', html, flags=re.S)
-    return re.sub(r'\s+', ' ', ihtml.unescape(re.sub(r'<[^>]+>', ' ', html)))
+# ---------- historie tachometru (kontrola-vin.cz) ----------
+# Registr MD stavy tachometru z STK nepublikuje, kontrola-vin.cz ano.
+# 22.6.2026 byla stránka za Cloudflare (403 z Pi) a jelo se bez ní; 21.7.2026
+# už se načítá i z Pi, takže se stáčení zase ověřuje automaticky. Kdyby se
+# Cloudflare vrátil, km_historie jen vrátí None a report zůstane bez odo.
+def _get_kv(vin):
+    return _get(f"https://www.kontrola-vin.cz/{vin}").decode("utf-8", "replace")
 
 
-def parse_vin(t):
-    """Vyparsuje data z textu stránky kontrola-vin.cz (čistá funkce, bez sítě).
+def parse_km_historie(html):
+    """Vyparsuje tabulku 'Historie STK a SME' (sloupec Stav km) z kontrola-vin.cz.
 
-    Vrací dict: {owners, odo:[(datum,km)], odo_str, tampered, ok}.
-    Tolerance poklesu 500 km (stejnodenní STK vs emise se může lišit o pár km).
+    Čistá funkce, bez sítě. Vrací {odo:[(datum,km)], odo_str, tampered, ok}.
+    Tolerance poklesu 500 km (STK a SME týž den se můžou lišit o pár km).
     """
-    out = {"owners": None, "odo": [], "odo_str": "", "tampered": False, "ok": False}
-    m = re.search(r'Počet vlastníků:\s*(\d+)', t)
-    if m:
-        out["owners"] = int(m.group(1))
+    out = {"odo": [], "odo_str": "", "tampered": False, "ok": False}
+    m = re.search(r'id="box-km".*?</table>', html, flags=re.S)
+    if not m:
+        return out
 
-    j = t.lower().find('průběh odometru')
-    seg = t[j + 15: j + 400] if j >= 0 else ""
-    pairs = re.findall(r'(\d{1,2}\.\d{1,2}\.\d{4})\s+(\d{4,7})', seg)
-    seen, last = [], None
-    for d, km in pairs:
-        if (d, km) != last:
-            seen.append((d, int(km)))
-        last = (d, km)
-    out["odo"] = seen
-    out["odo_str"] = "; ".join(f"{d}:{km}" for d, km in seen)
-    kms = [k for _, k in seen]
+    zaznamy = []
+    for tr in re.findall(r'<tr[^>]*>(.*?)</tr>', m.group(0), flags=re.S):
+        d = re.search(r'<th[^>]*>\s*(\d{1,2}\.\d{1,2}\.\d{4})', tr)
+        bunky = [re.sub(r'<[^>]+>', ' ', c).strip()
+                 for c in re.findall(r'<td[^>]*>(.*?)</td>', tr, flags=re.S)]
+        # sloupce: 0 = Kontrola/Druh, 1 = Výsledek/Protokol, 2 = Stav km
+        if not d or len(bunky) < 3 or not re.fullmatch(r'\d{3,7}', bunky[2]):
+            continue
+        zaznamy.append((parse_date(d.group(1)), d.group(1), int(bunky[2])))
+
+    # stránka řadí od nejstarší, ale nespoléháme na to – řadíme podle data
+    zaznamy.sort(key=lambda z: z[0] or dt.date.min)
+    # STK a SME týž den = dva řádky se stejným stavem km, do historie stačí jeden
+    odo, videno = [], set()
+    for _, datum, km in zaznamy:
+        if (datum, km) not in videno:
+            videno.add((datum, km))
+            odo.append((datum, km))
+    out["odo"] = odo
+    out["odo_str"] = "; ".join(f"{datum}:{km}" for datum, km in out["odo"])
+    kms = [km for _, km in out["odo"]]
     out["tampered"] = any(kms[i] - kms[i + 1] > 500 for i in range(len(kms) - 1))
-    out["ok"] = bool(seen) and not out["tampered"]
+    out["ok"] = bool(kms) and not out["tampered"]
     return out
+
+
+def km_historie(vin):
+    """Historie tachometru z kontrola-vin.cz. None = stránku se nepodařilo načíst."""
+    try:
+        return parse_km_historie(_get_kv(vin))
+    except Exception as e:
+        print(f"  ! kontrola-vin({vin}): {e} – tacho se neověří")
+        return None
 
 
 # ---------- pomocné ----------
@@ -390,17 +415,29 @@ def _sauto_url(item):
     return f"https://www.sauto.cz/osobni/detail/{znacka}/{model}/{item.get('id')}"
 
 
-def _verdikt(vin_rep):
+def _verdikt(vin_rep, najezd=None):
     """Text verdiktu podle zdroje reportu.
 
-    Historii tachometru (stáčení) dává jen ruční doplnění z prohlížeče
-    (klíče tampered/odo). Oficiální API tacho nemá – jen potvrdí, že auto je
-    v registru a s kolika vlastníky. Neznámé/nedostupné = neutvrzujeme nic."""
+    Historii tachometru (stáčení) dává kontrola-vin.cz (klíče tampered/odo),
+    oficiální API MD tacho nemá – jen potvrdí, že auto je v registru a s kolika
+    vlastníky. Neznámé/nedostupné = neutvrzujeme nic.
+
+    najezd = km z inzerátu; když je nižší než poslední stav na STK, sedí to
+    ještě hůř než nemonotónní historie – auto od té doby jezdit nepřestalo."""
+    odo = vin_rep.get("odo") or []
+    posledni = odo[-1][1] if odo else None
+    if isinstance(najezd, (int, float)) and posledni and najezd < posledni - 500:
+        return (f"⚠️ PODEZŘENÍ NA STÁČENÍ – inzerát {int(najezd)} km "
+                f"< STK {posledni} km")
     if vin_rep.get("tampered"):
         v = "⚠️ PODEZŘENÍ NA STÁČENÍ – ověřit"
-    elif vin_rep.get("odo"):
-        v = "OK – bez stáčení (monotónní)" if vin_rep.get("ok") \
-            else "nelze ověřit (bez záznamů odometru)"
+    elif odo:
+        if not vin_rep.get("ok"):
+            v = "nelze ověřit (bez záznamů odometru)"
+        elif len(odo) == 1:
+            v = f"OK – 1 záznam tacha ({odo[0][0]}: {odo[0][1]} km)"
+        else:
+            v = "OK – bez stáčení (monotónní)"
     elif vin_rep.get("source") == "api":
         v = "registr MD ✓ (tacho neověřeno)" if vin_rep.get("found") \
             else "není v registru MD (neověřeno)"
@@ -441,7 +478,7 @@ def nove_auto_row(item, vin_rep, dnes=None):
     stk_do = vin_rep.get("stk_do") or (str(stk)[:10] if stk else "")
     prvni_reg = vin_rep.get("prvni_reg") or prvni_reg
 
-    verdikt = _verdikt(vin_rep)
+    verdikt = _verdikt(vin_rep, item.get("tachometer"))
 
     return {
         "stav": "aktivní",

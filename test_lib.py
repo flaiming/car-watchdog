@@ -180,38 +180,60 @@ def test_motor_kod_15_smartstream(objem, nazev, expected):
     assert C.motor_kod("Hyundai" if "Hyundai" in nazev else "Kia", objem, nazev) == expected
 
 
-# ---------- parse_vin ----------
-def test_parse_vin_cisty_monotonni():
-    t = ("blabla Počet vlastníků: 2 ... Průběh odometru "
-         "25.1.2021 70551 25.1.2021 70551 24.1.2023 92329 24.1.2023 92329 "
-         "17.1.2025 124510 17.1.2025 124510 Věk a původ")
-    r = lib.parse_vin(t)
-    assert r["owners"] == 2
-    assert r["tampered"] is False
-    assert r["ok"] is True
+# ---------- parse_km_historie (kontrola-vin.cz) ----------
+def _kv_html(radky):
+    """Minimální kostra tabulky 'Historie STK a SME' z kontrola-vin.cz."""
+    tr = "".join(
+        f'<tr><th scope="row">{datum}</th>'
+        f'<td>{druh}<br><small>Pravidelná</small></td>'
+        f'<td><strong>způsobilé</strong><br><small>CZ-1-2-3</small></td>'
+        f'<td>{km}</td><td>STK Praha</td><td></td><td></td></tr>'
+        for datum, druh, km in radky)
+    return f'<div id="box-km"><table><thead><tr><th>Datum</th></tr></thead>' \
+           f'<tbody>{tr}</tbody></table></div>'
+
+
+def test_parse_km_historie_monotonni():
+    r = lib.parse_km_historie(_kv_html([
+        ("25.1.2021", "STK", 70551), ("24.1.2023", "STK", 92329),
+        ("17.1.2025", "STK", 124510)]))
+    assert r["tampered"] is False and r["ok"] is True
     assert r["odo"][0] == ("25.1.2021", 70551)
     assert r["odo"][-1] == ("17.1.2025", 124510)
 
 
-def test_parse_vin_staceni_detekce():
+def test_parse_km_historie_staceni_detekce():
     # pokles o víc než 500 km mezi čteními = stáčení
-    t = ("Počet vlastníků: 1 Průběh odometru "
-         "1.1.2020 150000 1.1.2022 90000 konec")
-    r = lib.parse_vin(t)
-    assert r["tampered"] is True
-    assert r["ok"] is False
+    r = lib.parse_km_historie(_kv_html([
+        ("1.1.2020", "STK", 150000), ("1.1.2022", "STK", 90000)]))
+    assert r["tampered"] is True and r["ok"] is False
 
 
-def test_parse_vin_tolerance_500():
-    # stejnodenní STK vs emise se liší o pár km -> není stáčení
-    t = ("Počet vlastníků: 1 Průběh odometru "
-         "1.1.2022 64086 1.1.2022 64085 1.1.2024 94943 konec")
-    r = lib.parse_vin(t)
+def test_parse_km_historie_tolerance_500():
+    # STK a SME týž den se liší o pár km -> není stáčení
+    r = lib.parse_km_historie(_kv_html([
+        ("1.1.2022", "STK", 64086), ("1.1.2022", "SME", 64085),
+        ("1.1.2024", "STK", 94943)]))
     assert r["tampered"] is False
 
 
-def test_parse_vin_bez_zaznamu():
-    r = lib.parse_vin("nic tu neni")
+def test_parse_km_historie_dedup_stk_sme():
+    # STK i SME týž den se stejným stavem = jeden záznam v historii
+    r = lib.parse_km_historie(_kv_html([
+        ("21.12.2024", "STK", 68835), ("21.12.2024", "SME", 68835)]))
+    assert r["odo"] == [("21.12.2024", 68835)]
+    assert r["odo_str"] == "21.12.2024:68835"
+
+
+def test_parse_km_historie_radi_podle_data():
+    r = lib.parse_km_historie(_kv_html([
+        ("17.1.2025", "STK", 124510), ("25.1.2021", "STK", 70551)]))
+    assert [km for _, km in r["odo"]] == [70551, 124510]
+    assert r["tampered"] is False
+
+
+def test_parse_km_historie_bez_tabulky():
+    r = lib.parse_km_historie("<html>nic tu neni</html>")
     assert r["odo"] == [] and r["ok"] is False
 
 
@@ -312,9 +334,27 @@ def test_verdikt_rucni_staceni():
     assert "STÁČENÍ" in lib._verdikt({"tampered": True, "odo": [("1.1.2020", 100)]})
 
 
-def test_verdikt_rucni_monotonni():
-    rep = {"tampered": False, "ok": True, "odo": [("1.1.2020", 100)]}
+def test_verdikt_monotonni():
+    rep = {"tampered": False, "ok": True,
+           "odo": [("1.1.2020", 100), ("1.1.2022", 50000)]}
     assert "bez stáčení" in lib._verdikt(rep)
+
+
+def test_verdikt_jediny_zaznam():
+    rep = {"tampered": False, "ok": True, "odo": [("1.1.2024", 68835)]}
+    v = lib._verdikt(rep)
+    assert "1 záznam tacha" in v and "68835" in v
+
+
+def test_verdikt_najezd_pod_stk():
+    # inzerát hlásí míň km než poslední STK -> stáčení
+    rep = {"tampered": False, "ok": True, "odo": [("1.1.2024", 120000)]}
+    assert "STÁČENÍ" in lib._verdikt(rep, najezd=90000)
+
+
+def test_verdikt_najezd_nad_stk_je_v_poradku():
+    rep = {"tampered": False, "ok": True, "odo": [("1.1.2024", 120000)]}
+    assert "STÁČENÍ" not in lib._verdikt(rep, najezd=130000)
 
 
 def test_nove_auto_row_bere_stk_z_api():
@@ -466,8 +506,9 @@ def test_nove_auto_row_sestaveni():
         "aircondition_cb": {"name": "Manuální"}, "vin": "UU1J9220062645827",
         "equipment_cb": [{"name": "Tempomat"}, {"name": "ABS"}],
     }
-    vrep = {"owners": 3, "odo": [("15.5.2023", 37405)],
-            "odo_str": "15.5.2023:37405", "tampered": False, "ok": True}
+    vrep = {"owners": 3, "odo": [("15.5.2023", 37405), ("15.5.2025", 46102)],
+            "odo_str": "15.5.2023:37405; 15.5.2025:46102",
+            "tampered": False, "ok": True}
     row = lib.nove_auto_row(item, vrep)
     assert row["znacka"] == "Kia"
     assert row["tempomat"] == "✅"
