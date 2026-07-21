@@ -6,7 +6,7 @@ Co dělá:
   1) Projde inzeráty v žebříčku a označí nově prodané (status != active).
      Pokud se prodaný inzerát vrátí jako aktivní, vrátí ho mezi aktivní.
   2) Stáhne aktuální výsledky sledovaných filtrů, najde nová ID.
-  3) Nová auta protřídí (atmosféra 1.6 + klima), u relevantních dohledá VIN,
+  3) Nová auta protřídí (atmosféra 1.5/1.6 + klima), u relevantních dohledá VIN,
      proklepne stáčení a přidá je do žebříčku.
   4) Přepočítá skóre, seřadí a uloží zpět do zebricek.xlsx.
 

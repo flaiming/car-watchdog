@@ -91,9 +91,17 @@ def test_classify_hyundai_mpi_projde():
     assert ok is True
 
 
+def test_classify_i30_15_dpi_bereme():
+    # 1.5 DPI Smartstream (1498 ccm, 81 kW) je atmosféra -> bereme
+    it = _item(1498, "Automatická", "Hyundai i30 kombi 1.5 DPI")
+    it["engine_power"] = 81
+    ok, _ = lib.classify(it)
+    assert ok is True
+
+
 def test_classify_i30_maly_objem_vyradit():
-    # menší benzíny i30 (1.5 DPI/CVVT = 1498, 1.0 T-GDI = 998) jsou pod 1.6 -> ven
-    for vol in (1498, 998):
+    # nejmenší benzíny i30 (1.0 T-GDI = 998, 1.4 T-GDI = 1353) i 1.5 T-GDI (1482) -> ven
+    for vol in (998, 1353, 1482):
         ok, duvod = lib.classify(_item(vol, "Manuální", "Hyundai i30 kombi"))
         assert ok is False and "atmosféra" in duvod
 
@@ -161,6 +169,15 @@ def test_classify_nezname_palivo_a_cena_projde():
 ])
 def test_motor_kod_kia_hyundai_varianty(znacka, nazev, expected):
     assert C.motor_kod(znacka, 1591, nazev) == expected
+
+
+@pytest.mark.parametrize("objem,nazev,expected", [
+    (1498, "Hyundai i30 kombi 1.5 DPI", "1.5 DPI (Smartstream)"),
+    (1497, "Hyundai i30 kombi", "1.5 DPI (Smartstream)"),   # bez varianty v názvu
+    (1498, "Kia Ceed SW 1.5 MPI", "1.5 MPI (Smartstream)"),
+])
+def test_motor_kod_15_smartstream(objem, nazev, expected):
+    assert C.motor_kod("Hyundai" if "Hyundai" in nazev else "Kia", objem, nazev) == expected
 
 
 # ---------- parse_vin ----------
@@ -441,9 +458,9 @@ def test_prepocti_nizsi_najezd_lepsi_skore():
 # ---------- nove_auto_row ----------
 def test_nove_auto_row_sestaveni():
     item = {
-        "id": 210492287, "name": "Dacia Lodgy 1.6 SCe Arctic, 7 míst",
-        "manufacturer_cb": {"name": "Dacia"}, "manufacturer_seo": "dacia",
-        "model_seo": "lodgy", "price": 210000, "tachometer": 48451,
+        "id": 210492287, "name": "Kia Cee´d SW 1.6 GDI",
+        "manufacturer_cb": {"name": "Kia"}, "manufacturer_seo": "kia",
+        "model_seo": "cee-d", "price": 210000, "tachometer": 48451,
         "engine_power": 75, "engine_volume": 1598,
         "in_operation_date": "2019-05-15", "stk_date": "2027-06-05",
         "aircondition_cb": {"name": "Manuální"}, "vin": "UU1J9220062645827",
@@ -452,14 +469,14 @@ def test_nove_auto_row_sestaveni():
     vrep = {"owners": 3, "odo": [("15.5.2023", 37405)],
             "odo_str": "15.5.2023:37405", "tampered": False, "ok": True}
     row = lib.nove_auto_row(item, vrep)
-    assert row["znacka"] == "Dacia"
+    assert row["znacka"] == "Kia"
     assert row["tempomat"] == "✅"
     assert row["park_senzory"] == "—"          # senzory v equipmentu nejsou
     assert row["turbo"] == "NE"
     assert row["zmen_vlastnika"] == 3
     assert row["rok"] == "2019"
     assert "bez stáčení" in row["verdikt"]
-    assert row["motor_kod"] == "1.6 SCe (H4M)"
+    assert row["motor_kod"] == "1.6 GDI (G4FG)"
 
 
 def test_nove_auto_row_pridano_dne():

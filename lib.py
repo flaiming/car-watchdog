@@ -115,7 +115,7 @@ def prodejce_name(item):
 
 
 def classify(item):
-    """Rozhodne, jestli auto patří do žebříčku (atmosféra 1.6 + klima).
+    """Rozhodne, jestli auto patří do žebříčku (atmosféra 1.5/1.6 + klima).
 
     Vrací (relevant: bool, duvod: str).
     """
@@ -136,7 +136,7 @@ def classify(item):
         return False, f"cena {int(cena)} Kč > {C.MAX_CENA} (mimo profil)"
 
     if vol not in C.OBJEMY_NA:
-        return False, f"není atmosféra 1.6 ({vol} ccm – turbo/diesel/jiné)"
+        return False, f"není atmosféra 1.5/1.6 ({vol} ccm – turbo/diesel/jiné)"
     # Strop výkonu: některé objemy sdílí turbo verze (1598 THP/T-GDI, 1591 T-GDI GT).
     # Atmosféry mají ≤103 kW, turba ≥110 kW – vyšší výkon = turbo, nezařazujeme.
     kw = item.get("engine_power")
@@ -162,7 +162,7 @@ def classify(item):
     if isinstance(km, (int, float)) and km > C.MAX_NAJEZD:
         return False, f"nájezd {int(km)} km > {C.MAX_NAJEZD} (mimo profil)"
 
-    return True, "OK – atmosféra 1.6 + klima"
+    return True, "OK – atmosféra 1.5/1.6 + klima"
 
 
 # ---------- VIN registr (oficiální API Ministerstva dopravy) ----------

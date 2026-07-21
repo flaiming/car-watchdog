@@ -50,31 +50,27 @@ DOV_API_KEY = os.environ.get("AUTA_DOV_API_KEY", "")
 # --- sauto filtry (stejné, jako sleduješ v prohlížeči) ---
 # Klíč = jen popisek do logu, hodnota = URL filtru.
 FILTRY = {
-    "Dacia (Lodgy/Dokker)":
-        "https://www.sauto.cz/inzerce/osobni?znacky-modely=15%3A6578%2C6385%2C1097"
-        "&cena-do=300000&vyrobeno-od=2016&objem-od=1200&palivo=benzin%2Chybridni&typ=mpv%2Cpick-up",
-    "Citroën Berlingo + Peugeot Partner":
-        "https://www.sauto.cz/inzerce/osobni?znacky-modely=70%3A1241%7C13%3A1270"
-        "&cena-do=300000&vyrobeno-od=2016&objem-od=1200&palivo=benzin%2Chybridni&typ=mpv%2Cpick-up",
-    "Kia Ceed SW (1.6 GDI atmosféra)":
+    "Kia Ceed SW (1.5 DPI + 1.6 GDI atmosféra)":
         "https://www.sauto.cz/inzerce/osobni?znacky-modely=39%3A1334%2C9377"
-        "&cena-do=300000&vyrobeno-od=2017&vyrobeno-do=2026&objem-od=1500&palivo=benzin&typ=kombi",
-    # objem-od=1580 místo stropu výkonu: chceme i 1.6 GDI, malé turbo motory
-    # (1.0/1.4 T-GDI) odfiltruje objem a 1.6 T-GDi (~150 kW) vyřadí classify
-    # (MAX_VYKON_NA) – atmosféry 1.6 mají ≤103 kW.
-    "Hyundai i30 kombi (1.6 atmosféra vč. GDI)":
+        "&cena-do=300000&vyrobeno-od=2017&vyrobeno-do=2026&objem-od=1490&palivo=benzin&typ=kombi",
+    # objem-od=1490 místo stropu výkonu: chceme 1.5 DPI (1497/1498 ccm) i 1.6 GDI.
+    # Menší turba (1.0 T-GDI 998, 1.4 T-GDI 1353, 1.5 T-GDI 1482) odfiltruje objem,
+    # 1.6 T-GDi (~150 kW) vyřadí classify (MAX_VYKON_NA) – atmosféry mají ≤103 kW.
+    "Hyundai i30 kombi (1.5 DPI + 1.6 atmosféra)":
         "https://www.sauto.cz/inzerce/osobni/hyundai/i30?cena-do=300000"
-        "&vyrobeno-od=2016&vyrobeno-do=2026&km-do=200000&objem-od=1580&palivo=benzin&typ=kombi",
+        "&vyrobeno-od=2016&vyrobeno-do=2026&km-do=200000&objem-od=1490&palivo=benzin&typ=kombi",
 }
 
 # --- kritéria zařazení nového auta ---
-# Atmosféra (bez turba) = jednoduchý motor. Bereme jen tyto objemy (min 1.6):
-#   1597/1600 = Dacia 1.6 SCe (H4M), 1598 = Citroën/Peugeot 1.6 VTi,
-#   1591 = Kia/Hyundai 1.6 GDI + 1.6 MPI/CVVT, 1598 = i Smartstream 1.6 MPI/DPI.
-# Menší benzíny i30/Ceed (1.5 DPI/CVVT = 1498, 1.0 T-GDI = 998) záměrně nechytáme.
-# Pozn.: některé objemy sdílí i turbo verze (1598 = i Citroën 1.6 THP / Kia 1.6 T-GDI,
-# 1591 = i Kia 1.6 T-GDI GT) – proto navíc strop výkonu níže.
-OBJEMY_NA = {1591, 1597, 1598, 1600}
+# Atmosféra (bez turba) = jednoduchý motor. Bereme jen tyto objemy:
+#   1493/1497/1498 = 1.5 DPI/MPI Smartstream (G4FS, ~81 kW) – sauto hlásí objem
+#     různě podle inzerátu, proto všechny tři varianty,
+#   1591 = 1.6 GDI (G4FG) + 1.6 MPI/CVVT, 1598 = Smartstream 1.6 MPI/DPI.
+# Nejmenší benzíny i30/Ceed (1.0 T-GDI = 998, 1.4 T-GDI = 1353) nechytáme; 1.5 T-GDI
+# má 1482 ccm, takže se do množiny nevejde.
+# Pozn.: 1598 i 1591 sdílí i turbo verze (Kia 1.6 T-GDI, 1.6 T-GDI GT) – proto
+# navíc strop výkonu níže.
+OBJEMY_NA = {1493, 1497, 1498, 1591, 1598}
 MAX_VYKON_NA = 105            # kW – nad tím už je to turbo (atmosféry zde mají ≤103 kW)
 # Palivo a cenu musí hlídat i classify, ne jen URL filtr: sauto do výsledků
 # míchá "topované" (placené) inzeráty mimo zadaný filtr. 7.7.2026 tak prošel
@@ -105,11 +101,15 @@ KLIMA_SKORE = {"auto": 100, "manual": 40, "bez": 0}   # bez klimy = žádný bon
 def motor_kod(znacka, objem, nazev=""):
     z = (znacka or "").lower()
     n = (nazev or "").lower()
-    if "dacia" in z:
-        return "1.6 SCe (H4M)"
-    if "citro" in z or "peugeot" in z:
-        return "1.6 VTi 120 (EP6C/5FS)"
+    try:
+        obj = int(objem)
+    except (TypeError, ValueError):
+        obj = 0
+    patnactka = 1450 <= obj <= 1520      # 1.5 (Smartstream) vs 1.6
     if "kia" in z or "hyundai" in z:
+        if patnactka:
+            # 1.5 Smartstream: atmosféra je jen DPI/MPI (G4FS, ~81 kW)
+            return "1.5 MPI (Smartstream)" if "mpi" in n else "1.5 DPI (Smartstream)"
         # variantu poznáme jen z názvu inzerátu (objem 1591/1598 sdílí víc motorů)
         if "dpi" in n:
             return "1.6 DPI (Smartstream)"

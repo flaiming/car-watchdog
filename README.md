@@ -1,4 +1,4 @@
-# Žebříček ojetých aut (Berlingo / Partner / Lodgy+Dokker / Ceed SW / i30 kombi)
+# Žebříček ojetých aut (Kia Ceed SW / Hyundai i30 kombi)
 
 Skripty pro denní aktualizaci scoreboardu kandidátů na koupi. Vše na jednom místě:
 data, skripty i venv.
@@ -7,7 +7,7 @@ data, skripty i venv.
 1. **Kontrola stavu** – projde inzeráty v `zebricek.xlsx` přes sauto API a označí
    nově prodané (`stav = PRODÁNO`). Když se prodaný inzerát vrátí, vrátí ho mezi aktivní.
 2. **Nové ve filtrech** – stáhne sledované sauto filtry a najde ID, která zatím nesledujeme.
-3. **Třídění + ověření** – nová auta protřídí (jen **atmosféra 1.6 + klima**, bez turba,
+3. **Třídění + ověření** – nová auta protřídí (jen **atmosféra 1.5/1.6 + klima**, bez turba,
    bez LPG), u relevantních ověří VIN přes **oficiální Registr silničních vozidel**
    (dataovozidlech.cz API): počet vlastníků, platnost STK, 1. registrace. Přidá je.
 4. **Přepočet** – spočítá skóre, seřadí (aktivní dle skóre, prodaná na konec) a uloží.
